@@ -1,0 +1,89 @@
+# Loki Stack Values - Monitoring configuration
+# Includes: Grafana, Prometheus, Loki, Promtail
+
+grafana:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClassName: csi-hostpath-sc
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://loki-prometheus-server
+          access: proxy
+          isDefault: true
+        - name: Loki
+          type: loki
+          url: http://loki:3100
+          access: proxy
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+  dashboards:
+    default:
+      # Cluster Overview
+      kubernetes-cluster:
+        gnetId: 6417
+        revision: 1
+        datasource: Prometheus
+      # Node Monitoring
+      kubernetes-nodes:
+        gnetId: 15762
+        revision: 1
+        datasource: Prometheus
+      node-exporter:
+        gnetId: 1860
+        revision: 31
+        datasource: Prometheus
+      # Workload Monitoring
+      kubernetes-deployments:
+        gnetId: 15760
+        revision: 1
+        datasource: Prometheus
+      kubernetes-statefulsets:
+        gnetId: 15761
+        revision: 1
+        datasource: Prometheus
+      # Pod Monitoring
+      kubernetes-pods:
+        gnetId: 15763
+        revision: 1
+        datasource: Prometheus
+      # Storage Monitoring
+      k8s-persistent-volumes:
+        gnetId: 13646
+        revision: 2
+        datasource: Prometheus
+      # Namespace Overview
+      kubernetes-namespaces:
+        gnetId: 15758
+        revision: 1
+        datasource: Prometheus
+
+prometheus:
+  enabled: true
+  server:
+    securityContext:
+      runAsUser: 65534
+      runAsNonRoot: true
+      fsGroup: 65534
+    persistentVolume:
+      enabled: true
+      size: 8Gi
+      storageClass: csi-hostpath-sc
+
+promtail:
+  enabled: true

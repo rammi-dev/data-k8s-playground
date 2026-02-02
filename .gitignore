@@ -1,0 +1,45 @@
+# Vagrant
+.vagrant/
+
+# VirtualBox
+*.vbox
+*.vbox-prev
+*.vdi
+*.vmdk
+
+# Data directory (persistent data stored separately)
+data/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Secrets (never commit)
+*.pem
+*.key
+secrets/
+.env
+.env.*
+
+# Helm dependencies (can be regenerated)
+components/*/helm/charts/
+components/*/helm/*.tgz
+
+# Minikube (if any local state)
+.minikube/

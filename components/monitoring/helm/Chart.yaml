@@ -1,0 +1,34 @@
+# Monitoring Stack - Loki Stack Chart
+# https://artifacthub.io/packages/helm/grafana/loki-stack
+#
+# Note: loki-stack is deprecated but still functional for simple setups.
+# For production, consider migrating to the main grafana/loki chart.
+
+apiVersion: v2
+name: monitoring
+description: Loki Stack deployment for Kubernetes monitoring (Grafana + Prometheus + Loki + Promtail)
+type: application
+version: 1.0.0
+
+# Reference chart: grafana/loki-stack
+# We use this as a dependency rather than maintaining our own chart
+
+dependencies:
+  - name: loki-stack
+    version: "2.10.3"
+    repository: "https://grafana.github.io/helm-charts"
+
+# Component versions included in loki-stack 2.10.3:
+#
+# | Component  | Chart Version | Description                    |
+# |------------|---------------|--------------------------------|
+# | loki       | ^2.15.2       | Log aggregation system         |
+# | promtail   | ^6.7.4        | Log collection agent           |
+# | grafana    | ~6.43.0       | Visualization & dashboards     |
+# | prometheus | ~19.7.2       | Metrics collection & alerting  |
+# | fluent-bit | ^2.3.0        | Log processor (optional)       |
+# | filebeat   | ~7.17.1       | Log shipper (optional)         |
+# | logstash   | ~7.17.1       | Log pipeline (optional)        |
+#
+# We enable: loki, promtail, grafana, prometheus
+# Disabled: fluent-bit, filebeat, logstash

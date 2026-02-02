@@ -1,0 +1,59 @@
+# Data Infrastructure Playground Configuration
+# Modify these values to customize your setup
+#
+# Resource Strategy:
+# - VM gets resources from host (adjust based on your machine)
+# - Linux OS + Docker needs ~2GB RAM and 1 CPU reserved
+# - Minikube gets remaining resources (VM resources minus reserved)
+# - NEVER use "max" for minikube - it causes VM crashes
+
+vm:
+  cpus: 8               # Allocate based on host capacity
+  memory: 40960         # MB (40GB) - allocate based on host capacity
+  disk_size: 100        # GB
+  box: "ubuntu/jammy64"
+  name: "data-playground"
+  gui: true             # Set true to show VirtualBox console window
+
+# Reserved for Linux OS + Docker daemon (do not allocate to minikube)
+reserved:
+  cpus: 1               # Minimum 1 CPU for system processes
+  memory: 2048          # MB - minimum 2GB for Linux + Docker
+
+paths:
+  # Host path where this project is located (must be on Windows filesystem /mnt/c/... or /mnt/d/...)
+  # This is required for Vagrant shared folders to work from WSL
+  host_project_path: "/mnt/c/Work/playground"
+  # Host path for persistent data (subfolder, git-ignored)
+  host_data_path: "/mnt/c/Work/playground/data"
+  # Path inside the VM where project will be mounted
+  guest_project_path: "/vagrant"
+  # Path inside the VM where data will be mounted
+  guest_data_path: "/data"
+
+minikube:
+  driver: "docker"
+  nodes: 1              # Increase for multi-node cluster testing
+  # cpus and memory are auto-calculated: VM resources - reserved
+  # With current settings: cpus=7, memory=38912MB (~38GB)
+  disk_size: "40g"
+  kubernetes_version: "v1.34.0"
+  # Extra options for better resource utilization
+  extra_config:
+    - "kubelet.housekeeping-interval=10s"
+
+# Component configurations (enable as needed)
+components:
+  monitoring:
+    enabled: true
+    namespace: "monitoring"
+    # Loki stack includes: Grafana, Prometheus, Loki, Promtail
+    grafana_storage: "5Gi"
+    prometheus_storage: "8Gi"
+
+  ceph:
+    enabled: false
+    namespace: "rook-ceph"
+    chart_repo: "https://charts.rook.io/release"
+    chart_name: "rook-ceph"
+    chart_version: "v1.13.0"

@@ -1,0 +1,44 @@
+# Rook-Ceph Helm Values Override
+# See: https://github.com/rook/rook/blob/master/deploy/charts/rook-ceph/values.yaml
+
+# Resource limits for development/testing environment
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Enable discovery daemon for device detection
+enableDiscoveryDaemon: true
+
+# CSI driver settings
+csi:
+  enableRbdDriver: true
+  enableCephfsDriver: true
+
+  # Resource limits for CSI pods
+  csiRBDProvisionerResource: |
+    - name : csi-provisioner
+      resource:
+        requests:
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 256Mi
+          cpu: 200m
+
+  csiCephFSProvisionerResource: |
+    - name : csi-provisioner
+      resource:
+        requests:
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 256Mi
+          cpu: 200m
+
+# Monitoring - disable by default for dev environment
+monitoring:
+  enabled: false

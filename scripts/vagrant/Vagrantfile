@@ -1,0 +1,115 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+require 'yaml'
+
+# Load configuration from project root
+config_file = File.join(File.dirname(__FILE__), '..', '..', 'config.yaml')
+settings = YAML.load_file(config_file)
+
+# Convert WSL path to Windows path for Vagrant
+def wsl_to_windows_path(wsl_path)
+  if wsl_path.start_with?('/mnt/')
+    # /mnt/c/path -> C:/path
+    drive = wsl_path[5].upcase
+    rest = wsl_path[6..-1]
+    "#{drive}:#{rest}"
+  else
+    wsl_path
+  end
+end
+
+Vagrant.configure("2") do |config|
+  vm_name = settings['vm']['name']
+
+  config.vm.define vm_name do |node|
+    node.vm.box = settings['vm']['box']
+    node.vm.hostname = vm_name
+
+    # VirtualBox provider settings
+    node.vm.provider "virtualbox" do |vb|
+      vb.name = vm_name
+      vb.memory = settings['vm']['memory']
+      vb.cpus = settings['vm']['cpus']
+
+      # Show VirtualBox GUI window (set to true to see VM console)
+      vb.gui = settings['vm'].fetch('gui', false)
+
+      # Enable nested virtualization for Docker
+      vb.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
+    end
+
+    # Network configuration
+    node.vm.network "private_network", type: "dhcp"
+
+    # Port forwarding for common services
+    node.vm.network "forwarded_port", guest: 8080, host: 8080   # Generic web
+    node.vm.network "forwarded_port", guest: 30000, host: 30000 # NodePort range start
+    node.vm.network "forwarded_port", guest: 30080, host: 30080 # Common NodePort
+
+    # Sync project folder
+    host_project_path = wsl_to_windows_path(settings['paths']['host_project_path'])
+    node.vm.synced_folder host_project_path, settings['paths']['guest_project_path']
+
+    # Sync persistent data folder
+    host_data_path = wsl_to_windows_path(settings['paths']['host_data_path'])
+    node.vm.synced_folder host_data_path, settings['paths']['guest_data_path'],
+      create: true
+
+    # Provisioning script - install Docker, minikube, helm, kubectl
+    node.vm.provision "shell", inline: <<-SHELL
+      set -e
+      export DEBIAN_FRONTEND=noninteractive
+
+      echo "=== Updating system ==="
+      apt-get update
+      apt-get upgrade -y
+
+      echo "=== Installing dependencies ==="
+      apt-get install -y \
+        apt-transport-https \
+        ca-certificates \
+        curl \
+        gnupg \
+        lsb-release \
+        software-properties-common \
+        jq
+
+      echo "=== Installing yq ==="
+      curl -fsSL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o /usr/local/bin/yq
+      chmod +x /usr/local/bin/yq
+
+      echo "=== Installing Docker ==="
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+      apt-get update
+      apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+      # Add vagrant user to docker group
+      usermod -aG docker vagrant
+
+      echo "=== Installing kubectl ==="
+      curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
+      apt-get update
+      apt-get install -y kubectl
+
+      echo "=== Installing minikube ==="
+      curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+      install minikube-linux-amd64 /usr/local/bin/minikube
+      rm minikube-linux-amd64
+
+      echo "=== Installing Helm ==="
+      curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      echo "=== Setting up swap space ==="
+      /vagrant/scripts/provision/setup-swap.sh 4G
+
+      echo "=== Running K8s tools setup script ==="
+      /vagrant/scripts/provision/setup-k8s-tools.sh
+
+      echo "=== Setup complete ==="
+      echo "SSH into the VM and run: cd /vagrant && ./scripts/minikube/build.sh"
+    SHELL
+  end
+end
