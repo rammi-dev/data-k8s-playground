@@ -237,14 +237,19 @@ cmd_destroy() {
     if [[ -d "$vbox_vms_path" ]]; then
         print_info "Cleaning up VirtualBox VM folder: $vbox_vms_path"
         if is_wsl; then
-            # Use Windows cmd to delete - handles Windows file permissions
-            local win_path
-            win_path=$(wslpath -w "$vbox_vms_path" 2>/dev/null)
-            if cmd.exe /c "rmdir /s /q \"$win_path\"" 2>/dev/null; then
-                print_success "Removed VM folder from disk"
+            # Use PowerShell to delete - handles Windows file permissions better
+            local win_path="C:\\Users\\$win_user\\VirtualBox VMs\\$vm_id"
+            if powershell.exe -Command "Remove-Item -Path '$win_path' -Recurse -Force -ErrorAction SilentlyContinue" 2>/dev/null; then
+                # Verify deletion
+                if [[ ! -d "$vbox_vms_path" ]]; then
+                    print_success "Removed VM folder from disk"
+                else
+                    print_warning "Could not fully remove VM folder (may need manual cleanup)"
+                    print_info "Run: powershell.exe -Command \"Remove-Item -Path '$win_path' -Recurse -Force\""
+                fi
             else
                 print_warning "Could not fully remove VM folder (may need manual cleanup)"
-                print_info "Path: $vbox_vms_path"
+                print_info "Run: powershell.exe -Command \"Remove-Item -Path '$win_path' -Recurse -Force\""
             fi
         else
             rm -rf "$vbox_vms_path"
