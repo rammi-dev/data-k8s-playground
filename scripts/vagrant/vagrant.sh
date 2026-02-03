@@ -31,9 +31,11 @@ GLOBAL OPTIONS:
   -f, --file <path>   Use custom Vagrantfile (default: Vagrantfile)
 
 LIFECYCLE COMMANDS:
-  build [name]          Create and provision a new VM (default: $VM_NAME)
+  build [--box <name>]  Create VM (--box uses custom box, skips provisioning)
   start [name|id]       Start VM by name or ID (default: $VM_NAME)
   stop [name|id]        Stop VM by name or ID (default: $VM_NAME)
+  suspend [name|id]     Suspend VM (save RAM state to disk)
+  resume [name|id]      Resume suspended VM (instant restore)
   restart [name|id]     Restart VM by name or ID (default: $VM_NAME)
   destroy <name|id>     Destroy VM (must specify name or ID)
 
@@ -52,9 +54,14 @@ SNAPSHOT COMMANDS:
   snapshot list             List all snapshots
   snapshot delete <name>    Delete a snapshot
 
+BOX COMMANDS:
+  package [name]            Create custom platform box from current VM
+  box list                  List all cached Vagrant boxes
+  box remove <name>         Remove a cached box (use with caution)
+
 EXAMPLES:
-  ./vagrant.sh build                    # Create VM with default name
-  ./vagrant.sh build my-vm              # Create VM with custom name
+  ./vagrant.sh build                    # Create VM with base box + provisioning
+  ./vagrant.sh build --box my-platform  # Create VM with custom box (no provisioning)
   ./vagrant.sh -f MyVagrantfile build   # Use custom Vagrantfile
   ./vagrant.sh list                     # List all VMs (shows IDs)
   ./vagrant.sh start                    # Start default VM
@@ -62,6 +69,9 @@ EXAMPLES:
   ./vagrant.sh stop $VM_NAME            # Stop VM by name
   ./vagrant.sh destroy 016b4ff          # Destroy VM by ID
   ./vagrant.sh snapshot save before-upgrade
+  ./vagrant.sh package                        # Create custom platform box
+  ./vagrant.sh box list                       # List cached boxes
+  ./vagrant.sh box remove my-platform-box     # Remove a box
 
 CURRENT VAGRANTFILE: $vagrantfile
 
@@ -75,10 +85,35 @@ EOF
 }
 
 cmd_build() {
-    local vm_name="${1:-data-playground}"
+    local custom_box=""
+    local vm_name="data-playground"
+
+    # Parse arguments: build [--box <box_name>] [vm_name]
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --box|-b)
+                custom_box="$2"
+                shift 2
+                ;;
+            *)
+                vm_name="$1"
+                shift
+                ;;
+        esac
+    done
 
     print_info "Building Vagrant VM: $vm_name"
     print_info "Configuration: ${VM_CPUS} CPUs, ${VM_MEMORY}MB RAM"
+
+    if [[ -n "$custom_box" ]]; then
+        print_info "Using custom platform box: $custom_box (skipping provisioning)"
+        export VAGRANT_BOX="$custom_box"
+        export VAGRANT_SKIP_PROVISION="true"
+    else
+        print_info "Using base box: $VM_BOX (full provisioning)"
+        export VAGRANT_BOX=""
+        export VAGRANT_SKIP_PROVISION=""
+    fi
 
     # Ensure data directory exists
     if [[ ! -d "$HOST_DATA_PATH" ]]; then
@@ -86,8 +121,12 @@ cmd_build() {
         mkdir -p "$HOST_DATA_PATH"
     fi
 
-    print_info "Starting Vagrant provisioning..."
-    run_vagrant up --provision "$vm_name"
+    print_info "Starting Vagrant..."
+    if [[ -n "$custom_box" ]]; then
+        run_vagrant up --no-provision "$vm_name"
+    else
+        run_vagrant up --provision "$vm_name"
+    fi
 
     print_success "VM '$vm_name' is ready!"
     print_info "Next steps:"
@@ -118,6 +157,25 @@ cmd_restart() {
     print_info "Restarting Vagrant VM: $vm_name"
     run_vagrant reload "$vm_name"
     print_success "VM '$vm_name' has been restarted."
+}
+
+cmd_suspend() {
+    local vm_name="${1:-data-playground}"
+
+    print_info "Suspending Vagrant VM: $vm_name"
+    print_info "RAM state will be saved to disk for fast resume"
+    run_vagrant suspend "$vm_name"
+    print_success "VM '$vm_name' has been suspended."
+    print_info "Resume with: ./vagrant.sh resume $vm_name"
+}
+
+cmd_resume() {
+    local vm_name="${1:-data-playground}"
+
+    print_info "Resuming Vagrant VM: $vm_name"
+    run_vagrant resume "$vm_name"
+    print_success "VM '$vm_name' is running."
+    print_info "SSH into VM: ./vagrant.sh ssh $vm_name"
 }
 
 cmd_destroy() {
@@ -154,12 +212,53 @@ cmd_destroy() {
         if $vbox_cmd unregistervm "$vm_id" --delete 2>/dev/null; then
             print_success "Removed orphaned VirtualBox VM '$vm_id'"
         else
-            print_error "Could not find VM '$vm_id' in Vagrant or VirtualBox"
-            exit 1
+            print_warning "VM '$vm_id' not found in VirtualBox registry"
         fi
     fi
 
+    # Clean up .vagrant folder for this VM
+    if [[ -d "$SCRIPT_DIR/.vagrant" ]]; then
+        print_info "Cleaning up .vagrant folder..."
+        rm -rf "$SCRIPT_DIR/.vagrant"
+    fi
+
+    # Clean up VirtualBox VMs folder on disk (handles orphaned folders)
+    local vbox_vms_path=""
+    if is_wsl; then
+        # Get Windows username and construct path
+        local win_user
+        win_user=$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')
+        vbox_vms_path="/mnt/c/Users/$win_user/VirtualBox VMs/$vm_id"
+    else
+        # Linux/macOS default VirtualBox VMs location
+        vbox_vms_path="$HOME/VirtualBox VMs/$vm_id"
+    fi
+
+    if [[ -d "$vbox_vms_path" ]]; then
+        print_info "Cleaning up VirtualBox VM folder: $vbox_vms_path"
+        if is_wsl; then
+            # Use Windows cmd to delete - handles Windows file permissions
+            local win_path
+            win_path=$(wslpath -w "$vbox_vms_path" 2>/dev/null)
+            if cmd.exe /c "rmdir /s /q \"$win_path\"" 2>/dev/null; then
+                print_success "Removed VM folder from disk"
+            else
+                print_warning "Could not fully remove VM folder (may need manual cleanup)"
+                print_info "Path: $vbox_vms_path"
+            fi
+        else
+            rm -rf "$vbox_vms_path"
+            print_success "Removed VM folder from disk"
+        fi
+    fi
+
+    # Prune stale entries
+    print_info "Pruning stale Vagrant entries..."
+    run_vagrant global-status --prune >/dev/null 2>&1 || true
+
     print_success "VM '$vm_id' has been destroyed."
+    print_info "Note: Base boxes (ubuntu/jammy64) and custom platform boxes are preserved."
+    print_info "Use './vagrant.sh box list' to see cached boxes."
 }
 
 cmd_ssh() {
@@ -225,6 +324,89 @@ cmd_provision() {
     print_success "VM '$vm_name' has been re-provisioned."
 }
 
+cmd_package() {
+    local box_name="${1:-data-playground-platform}"
+    local output_file="${box_name}.box"
+
+    print_info "Creating custom platform box: $box_name"
+    print_info "This will package the current VM state (with all installed software)"
+
+    # Check if VM is running
+    if ! run_vagrant status 2>/dev/null | grep -q "running"; then
+        print_error "VM must be running to create a package"
+        print_info "Start the VM first: ./vagrant.sh start"
+        exit 1
+    fi
+
+    # Clean up inside VM before packaging
+    print_info "Cleaning up VM before packaging..."
+    run_vagrant ssh -c "sudo apt-get clean && sudo rm -rf /tmp/* /var/tmp/*" 2>/dev/null || true
+
+    # Stop VM for clean package
+    print_info "Stopping VM for packaging..."
+    run_vagrant halt
+
+    # Package the VM
+    print_info "Packaging VM to $output_file..."
+    run_vagrant package --output "$output_file"
+
+    # Add to local box cache
+    print_info "Adding box to Vagrant cache..."
+    run_vagrant box add "$box_name" "$output_file" --force
+
+    # Restart VM
+    print_info "Restarting VM..."
+    run_vagrant up --no-provision
+
+    print_success "Custom platform box created: $box_name"
+    print_info "Box file saved: $SCRIPT_DIR/$output_file"
+    print_info ""
+    print_info "To use this custom platform box:"
+    print_info "  ./vagrant.sh build --box $box_name"
+    print_info ""
+    print_info "This will skip provisioning and start instantly!"
+}
+
+cmd_box() {
+    local subcmd="${1:-}"
+    shift || true
+
+    case "$subcmd" in
+        list)
+            print_info "Cached Vagrant boxes:"
+            run_vagrant box list
+            ;;
+        remove)
+            local box_name="$1"
+            if [[ -z "$box_name" ]]; then
+                print_error "Usage: ./vagrant.sh box remove <name>"
+                print_info "Use './vagrant.sh box list' to see available boxes"
+                exit 1
+            fi
+
+            # Protect the base Ubuntu box
+            if [[ "$box_name" == "ubuntu/jammy64" ]]; then
+                print_warning "Removing the base Ubuntu box is not recommended."
+                print_warning "This will require re-downloading (~500MB) on next build."
+                read -p "Are you sure? (y/N): " confirm
+                if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+                    print_info "Aborted."
+                    exit 0
+                fi
+            fi
+
+            print_warning "Removing box: $box_name"
+            run_vagrant box remove "$box_name" --force
+            print_success "Box '$box_name' removed."
+            ;;
+        *)
+            print_error "Unknown box command: $subcmd"
+            echo "Usage: ./vagrant.sh box <list|remove> [name]"
+            exit 1
+            ;;
+    esac
+}
+
 cmd_snapshot() {
     local subcmd="${1:-}"
     shift || true
@@ -287,6 +469,8 @@ case "$COMMAND" in
     build)      cmd_build "$@" ;;
     start)      cmd_start "$@" ;;
     stop)       cmd_stop "$@" ;;
+    suspend)    cmd_suspend "$@" ;;
+    resume)     cmd_resume "$@" ;;
     restart)    cmd_restart "$@" ;;
     destroy)    cmd_destroy "$@" ;;
     ssh)        cmd_ssh "$@" ;;
@@ -295,6 +479,8 @@ case "$COMMAND" in
     prune)      cmd_prune ;;
     provision)  cmd_provision "$@" ;;
     snapshot)   cmd_snapshot "$@" ;;
+    package)    cmd_package "$@" ;;
+    box)        cmd_box "$@" ;;
     help|--help|-h)
         show_help
         ;;

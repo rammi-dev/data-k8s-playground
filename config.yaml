@@ -8,10 +8,10 @@
 # - NEVER use "max" for minikube - it causes VM crashes
 
 vm:
-  cpus: 8               # Allocate based on host capacity
+  cpus: 12               # Allocate based on host capacity
   memory: 40960         # MB (40GB) - allocate based on host capacity
-  disk_size: 100        # GB
-  box: "ubuntu/jammy64"
+  disk_size: 50        # GB
+  box: "ubuntu/jammy64"  # Base box (clean Ubuntu)
   name: "data-playground"
   gui: true             # Set true to show VirtualBox console window
 
@@ -33,7 +33,7 @@ paths:
 
 minikube:
   driver: "docker"
-  nodes: 1              # Increase for multi-node cluster testing
+  nodes: 3              # Increase for multi-node cluster testing
   # cpus and memory are auto-calculated: VM resources - reserved
   # With current settings: cpus=7, memory=38912MB (~38GB)
   disk_size: "40g"
