@@ -42,3 +42,41 @@ csi:
 # Monitoring - disable by default for dev environment
 monitoring:
   enabled: false
+
+# ============================================
+# Custom template values (for our templates)
+# ============================================
+
+# CephCluster configuration
+cluster:
+  enabled: true
+  cephVersion: "quay.io/ceph/ceph:v18.2"
+  mon:
+    count: 3
+    allowMultiplePerNode: true  # Required for minikube
+  mgr:
+    count: 1
+  dashboard:
+    enabled: true
+  storage:
+    useAllNodes: true
+    useAllDevices: false
+    directories:
+      - path: /var/lib/rook
+
+# Object Store (S3 gateway)
+objectStore:
+  enabled: true
+  name: "s3-store"
+  metadataPool:
+    size: 2
+  dataPool:
+    size: 2
+  gateway:
+    port: 80
+    instances: 1
+
+# Storage Classes
+storageClass:
+  enabled: true
+

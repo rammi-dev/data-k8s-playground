@@ -38,9 +38,11 @@ minikube:
   # With current settings: cpus=7, memory=38912MB (~38GB)
   disk_size: "40g"
   kubernetes_version: "v1.34.0"
-  # Extra options for better resource utilization
+  # Extra options for better resource utilization and Ceph support
   extra_config:
     - "kubelet.housekeeping-interval=10s"
+    - "kubelet.max-pods=50"              # Ceph creates many pods
+    - "kubelet.serialize-image-pulls=false"  # Faster parallel image pulls
 
 # Component configurations (enable as needed)
 components:

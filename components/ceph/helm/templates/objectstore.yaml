@@ -1,0 +1,39 @@
+{{- if .Values.objectStore.enabled }}
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStore
+metadata:
+  name: {{ .Values.objectStore.name | default "s3-store" }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  metadataPool:
+    replicated:
+      size: {{ .Values.objectStore.metadataPool.size | default 2 }}
+  dataPool:
+    replicated:
+      size: {{ .Values.objectStore.dataPool.size | default 2 }}
+  preservePoolsOnDelete: false
+  
+  gateway:
+    port: {{ .Values.objectStore.gateway.port | default 80 }}
+    instances: {{ .Values.objectStore.gateway.instances | default 1 }}
+    resources:
+      limits:
+        cpu: "2"
+        memory: "2Gi"
+      requests:
+        cpu: "100m"
+        memory: "1Gi"
+---
+# Default admin user for S3 access
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStoreUser
+metadata:
+  name: admin
+  namespace: {{ .Release.Namespace }}
+spec:
+  store: {{ .Values.objectStore.name | default "s3-store" }}
+  displayName: "Admin User"
+  capabilities:
+    user: "*"
+    bucket: "*"
+{{- end }}

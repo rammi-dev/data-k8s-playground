@@ -92,6 +92,9 @@ done
 print_info "Creating storage directories on nodes..."
 for node in $(kubectl get nodes -o jsonpath='{.items[*].metadata.name}'); do
     minikube ssh -n "$node" "sudo mkdir -p /var/lib/rook && sudo chmod 755 /var/lib/rook" 2>/dev/null || true
+    # Increase inotify limits for Ceph (prevents watch limit errors)
+    minikube ssh -n "$node" "sudo sysctl -w fs.inotify.max_user_watches=1048576" 2>/dev/null || true
+    minikube ssh -n "$node" "sudo sysctl -w fs.inotify.max_user_instances=256" 2>/dev/null || true
 done
 
 print_info "Cluster info:"

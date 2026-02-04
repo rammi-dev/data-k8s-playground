@@ -847,30 +847,30 @@ cd /vagrant
 ### Check Status
 
 ```bash
+./components/ceph/scripts/status.sh
+```
+
+Or manually:
+```bash
 kubectl -n rook-ceph get pods
 kubectl -n rook-ceph get cephcluster
 kubectl -n rook-ceph exec -it deploy/rook-ceph-tools -- ceph status
 ```
 
-### Get S3 Credentials
-
-```bash
-kubectl -n rook-ceph get secret rook-ceph-object-user-s3-store-iceberg-user \
-  -o jsonpath='{.data.AccessKey}' | base64 -d
-
-kubectl -n rook-ceph get secret rook-ceph-object-user-s3-store-iceberg-user \
-  -o jsonpath='{.data.SecretKey}' | base64 -d
-```
-
 ### Test S3
 
 ```bash
-export AWS_ACCESS_KEY_ID=<access-key>
-export AWS_SECRET_ACCESS_KEY=<secret-key>
-export AWS_ENDPOINT_URL=http://rook-ceph-rgw-s3-store.rook-ceph.svc
+./components/ceph/scripts/test-s3.sh
+```
 
-aws s3 mb s3://test-bucket
-aws s3 ls
+### Get S3 Credentials (manual)
+
+```bash
+kubectl -n rook-ceph get secret rook-ceph-object-user-s3-store-admin \
+  -o jsonpath='{.data.AccessKey}' | base64 -d
+
+kubectl -n rook-ceph get secret rook-ceph-object-user-s3-store-admin \
+  -o jsonpath='{.data.SecretKey}' | base64 -d
 ```
 
 ### Remove Ceph
@@ -886,19 +886,17 @@ aws s3 ls
 ```
 components/ceph/
 ├── helm/
-│   ├── Chart.yaml              # Helm dependencies
 │   ├── values.yaml             # Configuration overrides
 │   └── templates/
-│       └── s3-user.yaml        # Iceberg S3 user
-├── manifests/
-│   ├── ceph-cluster.yaml       # CephCluster CR
-│   ├── ceph-object-store.yaml  # S3 gateway
-│   ├── ceph-block-pool.yaml    # Block storage pool
-│   ├── ceph-filesystem.yaml    # CephFS (optional)
-│   └── storage-classes.yaml    # StorageClass definitions
+│       ├── cephcluster.yaml    # CephCluster CR
+│       ├── objectstore.yaml    # S3 gateway + admin user
+│       └── storageclass.yaml   # StorageClass definitions
 ├── scripts/
 │   ├── build.sh                # Deploy Ceph
-│   └── destroy.sh              # Remove Ceph
+│   ├── destroy.sh              # Remove Ceph
+│   ├── status.sh               # Check Ceph health
+│   ├── test-s3.sh              # Test S3 connectivity
+│   └── create-box.sh           # Create platform box with Ceph
 └── README.md                   # This file
 ```
 

@@ -30,6 +30,20 @@ Create a new VM from scratch.
 
 ---
 
+#### quickstart
+Daily morning startup with automatic health check.
+
+```bash
+./vagrant.sh quickstart
+```
+
+- Tries `resume` first (fastest), falls back to `start`
+- Runs cluster health check automatically
+- Shows minikube and Ceph status
+- **Duration:** ~5-60 seconds depending on state
+
+---
+
 #### start
 Boot a stopped VM.
 

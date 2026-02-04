@@ -20,6 +20,8 @@ cd /vagrant
 | Script | Description |
 |--------|-------------|
 | `build.sh` | Start minikube cluster with configured resources and addons |
+| `health-check.sh` | Quick cluster and Ceph health verification |
+| `status.sh` | Show minikube status and addons |
 | `access-dashboard.sh` | Open Kubernetes dashboard in browser |
 
 ## Configuration

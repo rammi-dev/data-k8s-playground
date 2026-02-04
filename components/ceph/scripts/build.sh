@@ -53,6 +53,40 @@ helm upgrade --install rook-ceph rook-release/rook-ceph \
 print_info "Waiting for Rook operator to be ready..."
 kubectl -n "$CEPH_NAMESPACE" wait --for=condition=Ready pods -l app=rook-ceph-operator --timeout=300s
 
-print_success "Rook-Ceph operator deployed!"
-print_info "Note: You still need to create a CephCluster CR to provision storage"
-print_info "See: https://rook.io/docs/rook/latest/CRDs/Cluster/ceph-cluster-crd/"
+# Wait for CRDs to be established
+print_info "Waiting for Ceph CRDs to be established..."
+kubectl wait --for=condition=Established crd cephclusters.ceph.rook.io --timeout=60s
+kubectl wait --for=condition=Established crd cephobjectstores.ceph.rook.io --timeout=60s
+
+# Deploy CephCluster and components via rook-ceph-cluster chart
+print_info "Deploying CephCluster..."
+helm upgrade --install rook-ceph-cluster rook-release/rook-ceph-cluster \
+    --namespace "$CEPH_NAMESPACE" \
+    --version "$CEPH_CHART_VERSION" \
+    --values "$COMPONENT_DIR/helm/values.yaml" \
+    --set operatorNamespace="$CEPH_NAMESPACE" \
+    --wait --timeout=600s
+
+# Wait for Ceph cluster to become healthy
+print_info "Waiting for Ceph cluster to become healthy (this may take several minutes)..."
+kubectl -n "$CEPH_NAMESPACE" wait --for=jsonpath='{.status.phase}'=Ready cephcluster/rook-ceph --timeout=600s 2>/dev/null || {
+    print_warning "Cluster not fully ready yet, but pods should be starting"
+}
+
+# Deploy toolbox for debugging
+print_info "Deploying Ceph toolbox..."
+kubectl -n "$CEPH_NAMESPACE" apply -f https://raw.githubusercontent.com/rook/rook/release-1.13/deploy/examples/toolbox.yaml 2>/dev/null || true
+kubectl -n "$CEPH_NAMESPACE" wait --for=condition=Ready pods -l app=rook-ceph-tools --timeout=120s 2>/dev/null || true
+
+print_success "Rook-Ceph cluster deployed!"
+echo ""
+print_info "Ceph Status:"
+kubectl -n "$CEPH_NAMESPACE" get cephcluster
+echo ""
+print_info "Ceph Pods:"
+kubectl -n "$CEPH_NAMESPACE" get pods
+echo ""
+print_info "Next steps:"
+print_info "  - Check status: ./components/ceph/scripts/status.sh"
+print_info "  - Test S3: ./components/ceph/scripts/test-s3.sh"
+

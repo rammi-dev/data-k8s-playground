@@ -1,0 +1,69 @@
+{{- if .Values.cluster.enabled }}
+apiVersion: ceph.rook.io/v1
+kind: CephCluster
+metadata:
+  name: rook-ceph
+  namespace: {{ .Release.Namespace }}
+spec:
+  cephVersion:
+    image: {{ .Values.cluster.cephVersion | default "quay.io/ceph/ceph:v18.2" }}
+    allowUnsupported: true
+  dataDirHostPath: /var/lib/rook
+  skipUpgradeChecks: false
+  continueUpgradeAfterChecksEvenIfNotHealthy: false
+  
+  mon:
+    count: {{ .Values.cluster.mon.count | default 3 }}
+    allowMultiplePerNode: {{ .Values.cluster.mon.allowMultiplePerNode | default true }}
+  
+  mgr:
+    count: {{ .Values.cluster.mgr.count | default 1 }}
+    modules:
+      - name: pg_autoscaler
+        enabled: true
+  
+  dashboard:
+    enabled: {{ .Values.cluster.dashboard.enabled | default true }}
+    ssl: false
+  
+  storage:
+    useAllNodes: {{ .Values.cluster.storage.useAllNodes | default true }}
+    useAllDevices: {{ .Values.cluster.storage.useAllDevices | default false }}
+    {{- if .Values.cluster.storage.directories }}
+    directories:
+      {{- toYaml .Values.cluster.storage.directories | nindent 6 }}
+    {{- else }}
+    directories:
+      - path: /var/lib/rook
+    {{- end }}
+  
+  resources:
+    mon:
+      limits:
+        memory: "1Gi"
+      requests:
+        cpu: "100m"
+        memory: "512Mi"
+    osd:
+      limits:
+        memory: "2Gi"
+      requests:
+        cpu: "100m"
+        memory: "1Gi"
+    mgr:
+      limits:
+        memory: "512Mi"
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+  
+  # Disable crash collector in dev
+  crashCollector:
+    disable: true
+  
+  # Dev-friendly placement (allow on all nodes)
+  placement:
+    all:
+      tolerations:
+        - operator: Exists
+{{- end }}

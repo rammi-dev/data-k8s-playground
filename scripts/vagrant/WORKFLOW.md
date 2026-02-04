@@ -21,7 +21,13 @@ exit
 
 ## Daily Work
 
-### Morning Start (after stop)
+### Morning Start (quickest)
+```bash
+./vagrant.sh quickstart       # resume + health check (~5-60s)
+./vagrant.sh ssh              # if needed
+```
+
+### Morning Start (after stop, manual)
 ```bash
 ./vagrant.sh start           # ~30-60 seconds
 ./vagrant.sh ssh
@@ -29,11 +35,10 @@ cd /vagrant
 ./scripts/minikube/build.sh  # Start minikube
 ```
 
-### Morning Start (after suspend)
+### End of Day
 ```bash
-./vagrant.sh resume          # ~5 seconds
-./vagrant.sh ssh
-# Minikube already running!
+exit                         # Leave SSH
+./vagrant.sh stop            # Graceful shutdown
 ```
 
 ### End of Day
