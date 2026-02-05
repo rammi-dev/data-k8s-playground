@@ -76,9 +76,37 @@ minikube addons enable csi-hostpath-driver
 print_info "  - Enabling volumesnapshots (for CSI snapshots)..."
 minikube addons enable volumesnapshots
 
-# Optional: Enable registry for local container images
-# print_info "  - Enabling registry..."
-# minikube addons enable registry
+# Local registry for faster multi-node image distribution
+print_info "  - Enabling registry..."
+minikube addons enable registry
+
+# MetalLB for LoadBalancer service support
+print_info "  - Enabling metallb..."
+minikube addons enable metallb
+
+# Configure MetalLB with dynamic IP range based on minikube network
+print_info "  - Configuring metallb IP range..."
+# Wait for metallb-system namespace to be ready
+kubectl wait --for=condition=Ready namespace/metallb-system --timeout=60s 2>/dev/null || sleep 5
+MINIKUBE_IP=$(minikube ip)
+# Extract the subnet (e.g., 192.168.49.2 -> 192.168.49)
+SUBNET=$(echo "$MINIKUBE_IP" | cut -d. -f1-3)
+# Use .200-.250 range for LoadBalancer IPs (avoids conflict with node IPs)
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: metallb-system
+  name: config
+data:
+  config: |
+    address-pools:
+    - name: default
+      protocol: layer2
+      addresses:
+      - ${SUBNET}.200-${SUBNET}.250
+EOF
+print_info "  - MetalLB configured with range: ${SUBNET}.200-${SUBNET}.250"
 
 print_success "Minikube cluster is ready!"
 

@@ -44,6 +44,17 @@ Vagrant.configure("2") do |config|
 
       # Enable nested virtualization for Docker
       vb.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
+
+      # Performance optimizations
+      # Use host I/O cache for better disk performance
+      vb.customize ["storagectl", :id, "--name", "SCSI", "--hostiocache", "on"]
+      
+      # Enable SSD emulation for better I/O scheduling
+      vb.customize ["storageattach", :id, "--storagectl", "SCSI", "--port", "0", "--nonrotational", "on"]
+      
+      # Use paravirtualized network adapter for better throughput
+      vb.customize ["modifyvm", :id, "--nictype1", "virtio"]
+      vb.customize ["modifyvm", :id, "--nictype2", "virtio"]
     end
 
     # Network configuration

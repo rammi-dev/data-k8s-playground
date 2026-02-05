@@ -54,7 +54,7 @@ components:
     prometheus_storage: "8Gi"
 
   ceph:
-    enabled: false
+    enabled: true
     namespace: "rook-ceph"
     chart_repo: "https://charts.rook.io/release"
     chart_name: "rook-ceph"

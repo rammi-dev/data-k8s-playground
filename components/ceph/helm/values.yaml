@@ -1,82 +1,169 @@
-# Rook-Ceph Helm Values Override
+# Rook-Ceph Playground Values
+# Configures both operator and cluster via Helm dependencies
+#
+# Deploy with:
+#   helm dependency update
+#   helm upgrade --install rook-ceph . -n rook-ceph --create-namespace
+
+# ============================================
+# Operator Chart Configuration (alias: operator)
 # See: https://github.com/rook/rook/blob/master/deploy/charts/rook-ceph/values.yaml
+# ============================================
+operator:
+  enabled: true
+  
+  # Resource limits for development environment
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
 
-# Resource limits for development/testing environment
-resources:
-  limits:
-    cpu: 500m
-    memory: 512Mi
-  requests:
-    cpu: 100m
-    memory: 128Mi
+  # Enable discovery daemon for device detection
+  enableDiscoveryDaemon: true
 
-# Enable discovery daemon for device detection
-enableDiscoveryDaemon: true
+  # CSI driver settings
+  csi:
+    enableRbdDriver: true
+    enableCephfsDriver: true
+    
+    # Resource limits for CSI pods
+    csiRBDProvisionerResource: |
+      - name: csi-provisioner
+        resource:
+          requests:
+            memory: 64Mi
+            cpu: 50m
+          limits:
+            memory: 256Mi
+            cpu: 200m
 
-# CSI driver settings
-csi:
-  enableRbdDriver: true
-  enableCephfsDriver: true
+    csiCephFSProvisionerResource: |
+      - name: csi-provisioner
+        resource:
+          requests:
+            memory: 64Mi
+            cpu: 50m
+          limits:
+            memory: 256Mi
+            cpu: 200m
 
-  # Resource limits for CSI pods
-  csiRBDProvisionerResource: |
-    - name : csi-provisioner
-      resource:
-        requests:
-          memory: 64Mi
-          cpu: 50m
-        limits:
-          memory: 256Mi
-          cpu: 200m
-
-  csiCephFSProvisionerResource: |
-    - name : csi-provisioner
-      resource:
-        requests:
-          memory: 64Mi
-          cpu: 50m
-        limits:
-          memory: 256Mi
-          cpu: 200m
-
-# Monitoring - disable by default for dev environment
-monitoring:
-  enabled: false
+  # Monitoring - disable for dev
+  monitoring:
+    enabled: false
 
 # ============================================
-# Custom template values (for our templates)
+# Cluster Chart Configuration (alias: cluster)
+# See: https://github.com/rook/rook/blob/master/deploy/charts/rook-ceph-cluster/values.yaml
 # ============================================
-
-# CephCluster configuration
 cluster:
   enabled: true
-  cephVersion: "quay.io/ceph/ceph:v18.2"
-  mon:
-    count: 3
-    allowMultiplePerNode: true  # Required for minikube
-  mgr:
-    count: 1
-  dashboard:
+  
+  # Operator namespace (must match where operator is installed)
+  operatorNamespace: rook-ceph
+
+  # Ceph cluster configuration
+  cephClusterSpec:
+    cephVersion:
+      image: quay.io/ceph/ceph:v18.2
+      allowUnsupported: true
+    dataDirHostPath: /var/lib/rook
+    skipUpgradeChecks: false
+    
+    mon:
+      count: 3
+      allowMultiplePerNode: true  # Required for minikube
+    
+    mgr:
+      count: 1
+      modules:
+        - name: pg_autoscaler
+          enabled: true
+    
+    dashboard:
+      enabled: true
+      ssl: false
+    
+    storage:
+      useAllNodes: true
+      useAllDevices: false
+      directories:
+        - path: /var/lib/rook
+    
+    resources:
+      mon:
+        limits:
+          memory: "1Gi"
+        requests:
+          cpu: "100m"
+          memory: "512Mi"
+      osd:
+        limits:
+          memory: "2Gi"
+        requests:
+          cpu: "100m"
+          memory: "1Gi"
+      mgr:
+        limits:
+          memory: "512Mi"
+        requests:
+          cpu: "100m"
+          memory: "256Mi"
+    
+    crashCollector:
+      disable: true
+    
+    placement:
+      all:
+        tolerations:
+          - operator: Exists
+
+  # Object Store (S3 gateway)
+  cephObjectStores:
+    - name: s3-store
+      spec:
+        metadataPool:
+          replicated:
+            size: 2
+        dataPool:
+          replicated:
+            size: 2
+        preservePoolsOnDelete: false
+        gateway:
+          port: 80
+          instances: 1
+          resources:
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+            requests:
+              cpu: "100m"
+              memory: "1Gi"
+      storageClass:
+        enabled: true
+        name: ceph-bucket
+        reclaimPolicy: Delete
+
+  # Block storage pool
+  cephBlockPools:
+    - name: replicapool
+      spec:
+        replicated:
+          size: 2
+      storageClass:
+        enabled: true
+        name: ceph-block
+        isDefault: false
+        reclaimPolicy: Delete
+        allowVolumeExpansion: true
+        parameters:
+          imageFormat: "2"
+          imageFeatures: layering
+
+  # Toolbox for debugging
+  toolbox:
     enabled: true
-  storage:
-    useAllNodes: true
-    useAllDevices: false
-    directories:
-      - path: /var/lib/rook
 
-# Object Store (S3 gateway)
-objectStore:
-  enabled: true
-  name: "s3-store"
-  metadataPool:
-    size: 2
-  dataPool:
-    size: 2
-  gateway:
-    port: 80
-    instances: 1
-
-# Storage Classes
-storageClass:
-  enabled: true
 

@@ -1,17 +1,22 @@
 #!/bin/bash
-# Deploy Rook-Ceph to the Kubernetes cluster
+# Deploy Rook-Ceph to the Kubernetes cluster using Helm dependencies
 # Run this script from inside the VM
+#
+# For upgrades: simply re-run this script after modifying values.yaml
+# For clean install: ./destroy.sh first, then this script
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPONENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-source "$SCRIPT_DIR/../../scripts/common/utils.sh"
-source "$SCRIPT_DIR/../../scripts/common/config-loader.sh"
+HELM_DIR="$COMPONENT_DIR/helm"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+source "$PROJECT_ROOT/scripts/common/utils.sh"
+source "$PROJECT_ROOT/scripts/common/config-loader.sh"
 
 # Check if running inside VM
 if ! is_vagrant_vm && [[ ! -f /.dockerenv ]]; then
     print_error "This script should be run inside the Vagrant VM"
-    print_info "First SSH into the VM: ./scripts/vagrant/ssh.sh"
+    print_info "First SSH into the VM: ./scripts/vagrant/vagrant.sh ssh"
     exit 1
 fi
 
@@ -29,59 +34,51 @@ if ! minikube status &>/dev/null; then
     exit 1
 fi
 
-print_info "Deploying Rook-Ceph"
+print_info "Deploying Rook-Ceph via Helm"
 print_info "Namespace: $CEPH_NAMESPACE"
-print_info "Chart Version: $CEPH_CHART_VERSION"
+print_info "Chart: $HELM_DIR"
 
-# Add Helm repo
+# Add Helm repo (required for dependency resolution)
 print_info "Adding Rook Helm repository..."
-helm repo add rook-release "$CEPH_CHART_REPO" || true
+helm repo add rook-release "$CEPH_CHART_REPO" 2>/dev/null || true
 helm repo update
 
 # Create namespace
 kubectl create namespace "$CEPH_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
-# Install Rook-Ceph operator
-print_info "Installing Rook-Ceph operator..."
-helm upgrade --install rook-ceph rook-release/rook-ceph \
+# Update Helm dependencies (downloads rook-ceph and rook-ceph-cluster charts)
+print_info "Updating Helm dependencies..."
+cd "$HELM_DIR"
+helm dependency update
+
+# Deploy using our umbrella chart
+print_info "Installing/Upgrading Rook-Ceph..."
+helm upgrade --install rook-ceph-playground . \
     --namespace "$CEPH_NAMESPACE" \
-    --version "$CEPH_CHART_VERSION" \
-    --values "$COMPONENT_DIR/helm/values.yaml" \
-    --wait
+    --values values.yaml \
+    --wait --timeout=600s
 
 # Wait for operator to be ready
 print_info "Waiting for Rook operator to be ready..."
-kubectl -n "$CEPH_NAMESPACE" wait --for=condition=Ready pods -l app=rook-ceph-operator --timeout=300s
-
-# Wait for CRDs to be established
-print_info "Waiting for Ceph CRDs to be established..."
-kubectl wait --for=condition=Established crd cephclusters.ceph.rook.io --timeout=60s
-kubectl wait --for=condition=Established crd cephobjectstores.ceph.rook.io --timeout=60s
-
-# Deploy CephCluster and components via rook-ceph-cluster chart
-print_info "Deploying CephCluster..."
-helm upgrade --install rook-ceph-cluster rook-release/rook-ceph-cluster \
-    --namespace "$CEPH_NAMESPACE" \
-    --version "$CEPH_CHART_VERSION" \
-    --values "$COMPONENT_DIR/helm/values.yaml" \
-    --set operatorNamespace="$CEPH_NAMESPACE" \
-    --wait --timeout=600s
-
-# Wait for Ceph cluster to become healthy
-print_info "Waiting for Ceph cluster to become healthy (this may take several minutes)..."
-kubectl -n "$CEPH_NAMESPACE" wait --for=jsonpath='{.status.phase}'=Ready cephcluster/rook-ceph --timeout=600s 2>/dev/null || {
-    print_warning "Cluster not fully ready yet, but pods should be starting"
+kubectl -n "$CEPH_NAMESPACE" wait --for=condition=Ready pods -l app=rook-ceph-operator --timeout=300s 2>/dev/null || {
+    print_warning "Operator pods not ready yet, continuing..."
 }
 
-# Deploy toolbox for debugging
-print_info "Deploying Ceph toolbox..."
-kubectl -n "$CEPH_NAMESPACE" apply -f https://raw.githubusercontent.com/rook/rook/release-1.13/deploy/examples/toolbox.yaml 2>/dev/null || true
-kubectl -n "$CEPH_NAMESPACE" wait --for=condition=Ready pods -l app=rook-ceph-tools --timeout=120s 2>/dev/null || true
+# Wait for CRDs
+print_info "Waiting for Ceph CRDs..."
+kubectl wait --for=condition=Established crd cephclusters.ceph.rook.io --timeout=120s 2>/dev/null || true
 
-print_success "Rook-Ceph cluster deployed!"
+# Wait for cluster health
+print_info "Waiting for Ceph cluster to become healthy (may take several minutes)..."
+sleep 30  # Give cluster time to start creating resources
+kubectl -n "$CEPH_NAMESPACE" wait --for=jsonpath='{.status.phase}'=Ready cephcluster/rook-ceph --timeout=600s 2>/dev/null || {
+    print_warning "Cluster not fully ready yet, but deployment continues"
+}
+
+print_success "Rook-Ceph deployment complete!"
 echo ""
 print_info "Ceph Status:"
-kubectl -n "$CEPH_NAMESPACE" get cephcluster
+kubectl -n "$CEPH_NAMESPACE" get cephcluster 2>/dev/null || echo "No cluster yet"
 echo ""
 print_info "Ceph Pods:"
 kubectl -n "$CEPH_NAMESPACE" get pods
@@ -89,4 +86,7 @@ echo ""
 print_info "Next steps:"
 print_info "  - Check status: ./components/ceph/scripts/status.sh"
 print_info "  - Test S3: ./components/ceph/scripts/test-s3.sh"
+print_info ""
+print_info "To upgrade: edit helm/values.yaml and re-run this script"
+
 
