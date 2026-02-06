@@ -8,7 +8,7 @@
 # - NEVER use "max" for minikube - it causes VM crashes
 
 vm:
-  cpus: 18               # Allocate based on host capacity
+  cpus: 23               # Allocate based on host capacity
   memory: 40960         # MB (40GB) - allocate based on host capacity
   disk_size: 50        # GB
   box: "ubuntu/jammy64"  # Base box (clean Ubuntu)
@@ -21,7 +21,7 @@ vm:
 # Reserved for Linux OS + Docker daemon (do not allocate to minikube)
 reserved:
   cpus: 1               # Minimum 1 CPU for system processes
-  memory: 2048          # MB - minimum 2GB for Linux + Docker
+  memory: 4096          # MB - minimum 4GB for Linux + Docker
 
 paths:
   # Host path where this project is located (must be on Windows filesystem /mnt/c/... or /mnt/d/...)

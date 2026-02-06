@@ -102,6 +102,10 @@ Vagrant.configure("2") do |config|
         curl \
         gnupg \
         lsb-release \
+        wget \
+        git \
+        socat \
+        conntrack \
         software-properties-common \
         jq
 
@@ -114,6 +118,22 @@ Vagrant.configure("2") do |config|
       echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
       apt-get update
       apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+      # Configure Docker daemon for better network performance
+      echo "=== Configuring Docker daemon ==="
+      mkdir -p /etc/docker
+      cat > /etc/docker/daemon.json << 'DOCKERCFG'
+{
+  "dns": ["8.8.8.8", "8.8.4.4"],
+  "mtu": 1500,
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+DOCKERCFG
+      systemctl restart docker
 
       # Add vagrant user to docker group
       usermod -aG docker vagrant

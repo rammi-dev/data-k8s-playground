@@ -42,7 +42,39 @@ fi
 
 # Start minikube
 print_info "Running: $MINIKUBE_CMD"
+
+# Add Docker optimizations if using docker driver
+if [[ "$MINIKUBE_DRIVER" == "docker" ]]; then
+    MINIKUBE_CMD+=" --docker-opt dns=8.8.8.8 --docker-opt dns=8.8.4.4 --docker-opt mtu=1500"
+fi
+
 eval $MINIKUBE_CMD
+
+# Configure Docker inside nodes (Post-Start Workaround)
+print_info "Configuring Docker inside minikube nodes (Full Config)..."
+# Loop through all nodes (minikube, minikube-m02, etc.)
+for ((i=1; i<=$MINIKUBE_NODES; i++)); do
+    if [[ $i -eq 1 ]]; then
+        NODE_NAME="minikube"
+    else
+        NODE_NAME="minikube-m0$i"
+    fi
+    
+    print_info "  - Patching $NODE_NAME..."
+    # Write optimized daemon.json with ALL settings
+    minikube ssh -n "$NODE_NAME" -- sudo tee /etc/docker/daemon.json <<EOF
+{
+  "exec-opts": ["native.cgroupdriver=systemd"],
+  "log-driver": "json-file",
+  "log-opts": {"max-size": "100m"},
+  "storage-driver": "overlay2",
+  "dns": ["8.8.8.8", "8.8.4.4"],
+  "mtu": 1500
+}
+EOF
+    # Restart Docker to apply (run in background to avoid hanging the ssh session)
+    minikube ssh -n "$NODE_NAME" -- "sudo nohup sh -c 'sleep 2; systemctl restart docker' >/dev/null 2>&1 &"
+done
 
 # Wait for cluster to be ready
 print_info "Waiting for cluster to be ready..."
@@ -63,22 +95,15 @@ minikube addons enable dashboard
 print_info "  - Enabling metrics-server..."
 minikube addons enable metrics-server
 
-print_info "  - Enabling default-storageclass..."
-minikube addons enable default-storageclass
-
-print_info "  - Enabling storage-provisioner..."
-minikube addons enable storage-provisioner
-
-# CSI drivers for Ceph/Rook support
-print_info "  - Enabling CSI hostpath driver..."
-minikube addons enable csi-hostpath-driver
-
-print_info "  - Enabling volumesnapshots (for CSI snapshots)..."
-minikube addons enable volumesnapshots
-
 # Local registry for faster multi-node image distribution
 print_info "  - Enabling registry..."
 minikube addons enable registry
+
+# Note: We skip the following addons because Ceph/Rook provides its own:
+# - default-storageclass: Ceph provides rook-ceph-block, rook-cephfs storage classes
+# - storage-provisioner: Ceph CSI driver handles provisioning
+# - csi-hostpath-driver: Not needed with Ceph
+# - volumesnapshots: Ceph provides its own snapshot capability
 
 # MetalLB for LoadBalancer service support
 print_info "  - Enabling metallb..."
