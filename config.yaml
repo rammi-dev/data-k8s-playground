@@ -8,12 +8,15 @@
 # - NEVER use "max" for minikube - it causes VM crashes
 
 vm:
-  cpus: 12               # Allocate based on host capacity
+  cpus: 18               # Allocate based on host capacity
   memory: 40960         # MB (40GB) - allocate based on host capacity
   disk_size: 50        # GB
   box: "ubuntu/jammy64"  # Base box (clean Ubuntu)
   name: "data-playground"
   gui: true             # Set true to show VirtualBox console window
+  # Bridged network adapter for fast internet (bypasses VirtualBox NAT)
+  # Set to null for auto-detection, or specify adapter name like "Ethernet" or "Wi-Fi"
+  bridge_adapter: null
 
 # Reserved for Linux OS + Docker daemon (do not allocate to minikube)
 reserved:
