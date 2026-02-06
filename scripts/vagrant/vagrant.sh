@@ -46,6 +46,7 @@ ACCESS COMMANDS:
   prune                 Remove stale/invalid VM entries from cache
 
 MAINTENANCE COMMANDS:
+  clean [name]          Clean orphaned VirtualBox artifacts (auto-runs before build)
   provision [name|id]   Re-run provisioning scripts
 
 SNAPSHOT COMMANDS:
@@ -84,6 +85,49 @@ CONFIGURATION:
 EOF
 }
 
+# Clean up orphaned VirtualBox VM folders that may have been left behind
+cleanup_orphaned_vm() {
+    local vm_name="$1"
+    
+    # Clean up .vagrant folder if it exists
+    if [[ -d "$SCRIPT_DIR/.vagrant" ]]; then
+        print_info "Removing stale .vagrant folder..."
+        rm -rf "$SCRIPT_DIR/.vagrant"
+    fi
+    
+    # Clean up VirtualBox VMs folder on disk
+    local vbox_vms_path=""
+    if is_wsl; then
+        local win_user
+        win_user=$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')
+        vbox_vms_path="/mnt/c/Users/$win_user/VirtualBox VMs/$vm_name"
+        
+        if [[ -d "$vbox_vms_path" ]]; then
+            print_info "Removing orphaned VirtualBox VM folder: $vbox_vms_path"
+            local win_path="C:\\Users\\$win_user\\VirtualBox VMs\\$vm_name"
+            powershell.exe -Command "Remove-Item -Path '$win_path' -Recurse -Force -ErrorAction SilentlyContinue" 2>/dev/null || true
+        fi
+    else
+        vbox_vms_path="$HOME/VirtualBox VMs/$vm_name"
+        if [[ -d "$vbox_vms_path" ]]; then
+            print_info "Removing orphaned VirtualBox VM folder: $vbox_vms_path"
+            rm -rf "$vbox_vms_path"
+        fi
+    fi
+    
+    # Unregister VM from VirtualBox if it exists but is inaccessible
+    local vbox_cmd="VBoxManage"
+    is_wsl && vbox_cmd="VBoxManage.exe"
+    
+    if $vbox_cmd showvminfo "$vm_name" &>/dev/null; then
+        print_info "Unregistering stale VM from VirtualBox..."
+        $vbox_cmd unregistervm "$vm_name" --delete 2>/dev/null || true
+    fi
+    
+    # Prune Vagrant global status
+    run_vagrant global-status --prune >/dev/null 2>&1 || true
+}
+
 cmd_build() {
     local custom_box=""
     local vm_name="data-playground"
@@ -101,6 +145,9 @@ cmd_build() {
                 ;;
         esac
     done
+
+    # Clean up any orphaned VM artifacts before building
+    cleanup_orphaned_vm "$vm_name"
 
     print_info "Building Vagrant VM: $vm_name"
     print_info "Configuration: ${VM_CPUS} CPUs, ${VM_MEMORY}MB RAM"
@@ -482,6 +529,7 @@ case "$COMMAND" in
     status)     cmd_status "$@" ;;
     list)       cmd_list ;;
     prune)      cmd_prune ;;
+    clean)      cleanup_orphaned_vm "${1:-$VM_NAME}"; print_success "Cleanup complete" ;;
     provision)  cmd_provision "$@" ;;
     snapshot)   cmd_snapshot "$@" ;;
     package)    cmd_package "$@" ;;
