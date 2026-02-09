@@ -52,9 +52,14 @@ Vagrant.configure("2") do |config|
       # Enable SSD emulation for better I/O scheduling
       vb.customize ["storageattach", :id, "--storagectl", "SCSI", "--port", "0", "--nonrotational", "on"]
       
-      # Use paravirtualized network adapter for better throughput
+      # Use virtio-net for best performance (requires Guest Additions)
       vb.customize ["modifyvm", :id, "--nictype1", "virtio"]
       vb.customize ["modifyvm", :id, "--nictype2", "virtio"]
+      vb.customize ["modifyvm", :id, "--nictype3", "virtio"]
+      
+      # Network performance optimizations
+      vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
+      vb.customize ["modifyvm", :id, "--natdnsproxy1", "on"]
     end
 
     # Network configuration
@@ -124,12 +129,21 @@ Vagrant.configure("2") do |config|
       mkdir -p /etc/docker
       cat > /etc/docker/daemon.json << 'DOCKERCFG'
 {
-  "dns": ["8.8.8.8", "8.8.4.4"],
+  "dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"],
   "mtu": 1500,
   "log-driver": "json-file",
   "log-opts": {
     "max-size": "10m",
     "max-file": "3"
+  },
+  "max-concurrent-downloads": 10,
+  "max-concurrent-uploads": 5,
+  "default-ulimits": {
+    "nofile": {
+      "Name": "nofile",
+      "Hard": 64000,
+      "Soft": 64000
+    }
   }
 }
 DOCKERCFG

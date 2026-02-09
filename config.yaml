@@ -15,8 +15,8 @@ vm:
   name: "data-playground"
   gui: true             # Set true to show VirtualBox console window
   # Bridged network adapter for fast internet (bypasses VirtualBox NAT)
-  # Set to null for auto-detection, or specify adapter name like "Ethernet" or "Wi-Fi"
-  bridge_adapter: null
+  # Set to "auto" for auto-detection, or specify adapter name like "Ethernet" or "Wi-Fi"
+  bridge_adapter: "auto"
 
 # Reserved for Linux OS + Docker daemon (do not allocate to minikube)
 reserved:
@@ -41,11 +41,14 @@ minikube:
   # With current settings: cpus=7, memory=38912MB (~38GB)
   disk_size: "40g"
   kubernetes_version: "v1.34.0"
-  # Extra options for better resource utilization and Ceph support
+  # Extra options for better resource utilization, network performance, and Ceph support
   extra_config:
     - "kubelet.housekeeping-interval=10s"
     - "kubelet.max-pods=50"              # Ceph creates many pods
-    - "kubelet.serialize-image-pulls=false"  # Faster parallel image pulls
+    - "kubelet.serialize-image-pulls=false"   # CRITICAL: Enable parallel pulls (was true, causing sequential downloads)
+    - "kubelet.max-parallel-image-pulls=10"   # Allow 10 concurrent image pulls per node
+    - "kubelet.registry-pull-qps=10"          # Rate limit: 10 image pulls/sec
+    - "kubelet.registry-burst=20"             # Burst allowance for spikes
 
 # Component configurations (enable as needed)
 components:

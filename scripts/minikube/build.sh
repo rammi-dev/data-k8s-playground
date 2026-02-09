@@ -45,36 +45,26 @@ print_info "Running: $MINIKUBE_CMD"
 
 # Add Docker optimizations if using docker driver
 if [[ "$MINIKUBE_DRIVER" == "docker" ]]; then
-    MINIKUBE_CMD+=" --docker-opt dns=8.8.8.8 --docker-opt dns=8.8.4.4 --docker-opt mtu=1500"
+    print_info "Configuring Docker-in-Docker network optimizations..."
+    
+    # Detect MTU from host Docker bridge to avoid fragmentation
+    HOST_MTU=$(docker network inspect bridge -f '{{.Options."com.docker.network.driver.mtu"}}' 2>/dev/null || echo "1500")
+    print_info "  - Detected host Docker MTU: ${HOST_MTU}"
+    
+    # DNS configuration (use multiple servers for redundancy)
+    MINIKUBE_CMD+=" --docker-opt dns=8.8.8.8"
+    MINIKUBE_CMD+=" --docker-opt dns=8.8.4.4"
+    MINIKUBE_CMD+=" --docker-opt dns=1.1.1.1"
+    
+    # MTU must match to avoid fragmentation in Docker-in-Docker
+    MINIKUBE_CMD+=" --docker-opt mtu=${HOST_MTU}"
+    
+    # Concurrent downloads (Docker daemon level)
+    MINIKUBE_CMD+=" --docker-opt max-concurrent-downloads=10"
+    MINIKUBE_CMD+=" --docker-opt max-concurrent-uploads=5"
 fi
 
 eval $MINIKUBE_CMD
-
-# Configure Docker inside nodes (Post-Start Workaround)
-print_info "Configuring Docker inside minikube nodes (Full Config)..."
-# Loop through all nodes (minikube, minikube-m02, etc.)
-for ((i=1; i<=$MINIKUBE_NODES; i++)); do
-    if [[ $i -eq 1 ]]; then
-        NODE_NAME="minikube"
-    else
-        NODE_NAME="minikube-m0$i"
-    fi
-    
-    print_info "  - Patching $NODE_NAME..."
-    # Write optimized daemon.json with ALL settings
-    minikube ssh -n "$NODE_NAME" -- sudo tee /etc/docker/daemon.json <<EOF
-{
-  "exec-opts": ["native.cgroupdriver=systemd"],
-  "log-driver": "json-file",
-  "log-opts": {"max-size": "100m"},
-  "storage-driver": "overlay2",
-  "dns": ["8.8.8.8", "8.8.4.4"],
-  "mtu": 1500
-}
-EOF
-    # Restart Docker to apply (run in background to avoid hanging the ssh session)
-    minikube ssh -n "$NODE_NAME" -- "sudo nohup sh -c 'sleep 2; systemctl restart docker' >/dev/null 2>&1 &"
-done
 
 # Wait for cluster to be ready
 print_info "Waiting for cluster to be ready..."
@@ -142,12 +132,27 @@ for node in $(kubectl get nodes -o jsonpath='{.items[*].metadata.name}'); do
 done
 
 # Create directories for Ceph OSD storage on each node (directory-based storage for dev)
-print_info "Creating storage directories on nodes..."
+print_info "Creating storage directories and configuring network performance on nodes..."
 for node in $(kubectl get nodes -o jsonpath='{.items[*].metadata.name}'); do
+    print_info "  - Configuring node: $node"
+    
+    # Storage directories
     minikube ssh -n "$node" "sudo mkdir -p /var/lib/rook && sudo chmod 755 /var/lib/rook" 2>/dev/null || true
-    # Increase inotify limits for Ceph (prevents watch limit errors)
+    
+    # Inotify limits for Ceph (prevents watch limit errors)
     minikube ssh -n "$node" "sudo sysctl -w fs.inotify.max_user_watches=1048576" 2>/dev/null || true
     minikube ssh -n "$node" "sudo sysctl -w fs.inotify.max_user_instances=256" 2>/dev/null || true
+    
+    # Network performance tuning (TCP buffers for faster transfers)
+    minikube ssh -n "$node" "sudo sysctl -w net.core.rmem_max=134217728" 2>/dev/null || true
+    minikube ssh -n "$node" "sudo sysctl -w net.core.wmem_max=134217728" 2>/dev/null || true
+    minikube ssh -n "$node" "sudo sysctl -w net.ipv4.tcp_rmem='4096 87380 67108864'" 2>/dev/null || true
+    minikube ssh -n "$node" "sudo sysctl -w net.ipv4.tcp_wmem='4096 65536 67108864'" 2>/dev/null || true
+    minikube ssh -n "$node" "sudo sysctl -w net.core.netdev_max_backlog=5000" 2>/dev/null || true
+    
+    # Enable BBR congestion control if available (better for high-latency paths)
+    minikube ssh -n "$node" "sudo sysctl -w net.ipv4.tcp_congestion_control=bbr" 2>/dev/null || true
+    minikube ssh -n "$node" "sudo sysctl -w net.core.default_qdisc=fq" 2>/dev/null || true
 done
 
 print_info "Cluster info:"
