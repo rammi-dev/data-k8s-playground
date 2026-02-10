@@ -16,7 +16,7 @@ From `values-overrides.yaml`:
 
 ## Architecture
 
-The **Percona Operator** (green) watches `PerconaServerMongoDB` CRs and creates the runtime objects (yellow) — StatefulSet, headless Service, and a backup CronJob. **Pre-created secrets** (light blue) are created by `build.sh` from `.env` before Helm install — the app user password and all 4 system user passwords. Each MongoDB pod runs three containers: `mongod` (database), `pbm-agent` (backup), and `mongodb_exporter` (metrics). The **pre-delete hook** (purple) ensures clean teardown on `helm uninstall` by deleting CRs before the operator is removed.
+The **Percona Operator** (green) watches `PerconaServerMongoDB` CRs and creates the runtime objects (yellow) — StatefulSet, headless Service, and a backup CronJob. **Dremio components** (grey) connect to MongoDB through the headless Service `dremio-mongodb-rs0` on port 27017. **Pre-created secrets** (light blue) are created by `build.sh` from `.env` before Helm install — the app user password and all 4 system user passwords. Each MongoDB pod runs three containers: `mongod` (database), `pbm-agent` (backup), and `mongodb_exporter` (metrics). The **pre-delete hook** (purple) ensures clean teardown on `helm uninstall` by deleting CRs before the operator is removed.
 
 ```mermaid
 graph TB
@@ -57,6 +57,14 @@ graph TB
         direction TB
         AppSecret2["Secret<br/>dremio-mongodb-app-users<br/>(dremio user, from .env)"]
         SysSecret["Secret<br/>dremio-mongodb-system-users<br/>(4 system users, from .env)"]
+    end
+
+    subgraph Clients["Dremio Components (MongoDB clients)"]
+        direction LR
+        Coord["coordinator"]
+        CatSrv["catalog-server"]
+        CatSvc["catalog-services"]
+        EngOp["engine-operator"]
     end
 
     subgraph Pods["MongoDB Pod"]
@@ -100,6 +108,15 @@ graph TB
     %% StatefulSet runs pods
     STS --> Pods
 
+    %% Service routes to pods
+    SVC -->|":27017"| Mongod
+
+    %% Dremio components connect via headless Service
+    Coord -->|"mongodb://"| SVC
+    CatSrv -->|"mongodb://"| SVC
+    CatSvc -->|"mongodb://"| SVC
+    EngOp -->|"mongodb://"| SVC
+
     %% Pod storage
     Mongod --> PVC
     PBM -->|"S3 API"| S3
@@ -123,7 +140,9 @@ graph TB
     classDef storage fill:#ff6b6b,stroke:#c92a2a,stroke-width:2px,color:#fff
     classDef hook fill:#d0bfff,stroke:#7950f2,stroke-width:2px,color:#000
     classDef precreated fill:#74c0fc,stroke:#1864ab,stroke-width:2px,color:#000
+    classDef client fill:#e9ecef,stroke:#495057,stroke-width:2px,color:#000
 
+    class Coord,CatSrv,CatSvc,EngOp client
     class OpDeploy,OpSA,OpRole,OpRB operator
     class CRD1,CRD2,CRD3 crd
     class PSMDB,MongSA,BackupSecret cluster
