@@ -114,10 +114,10 @@ cluster:
           memory: "1Gi"
       mgr:
         limits:
-          memory: "512Mi"
+          memory: "1Gi"
         requests:
           cpu: "100m"
-          memory: "256Mi"
+          memory: "512Mi"
 
     crashCollector:
       disable: true
@@ -150,6 +150,8 @@ cluster:
         replicated:
           size: 1
           requireSafeReplicaSize: false
+      storageClass:
+        enabled: false
     - name: replicapool
       spec:
         replicated:

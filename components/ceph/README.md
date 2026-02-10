@@ -863,14 +863,51 @@ kubectl -n rook-ceph exec -it deploy/rook-ceph-tools -- ceph status
 ./components/ceph/scripts/test-s3.sh
 ```
 
-### Get S3 Credentials (manual)
+### Get S3 Credentials
 
 ```bash
+# Access key
 kubectl -n rook-ceph get secret rook-ceph-object-user-s3-store-admin \
-  -o jsonpath='{.data.AccessKey}' | base64 -d
+  -o jsonpath='{.data.AccessKey}' | base64 -d && echo
 
+# Secret key
 kubectl -n rook-ceph get secret rook-ceph-object-user-s3-store-admin \
-  -o jsonpath='{.data.SecretKey}' | base64 -d
+  -o jsonpath='{.data.SecretKey}' | base64 -d && echo
+```
+
+### Configure AWS CLI
+
+1. Install AWS CLI v2 (not available via apt):
+
+```bash
+curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+unzip -q awscliv2.zip
+sudo ./aws/install
+rm -rf aws awscliv2.zip
+```
+
+2. Set up port-forward to the RGW service (ClusterIP is not reachable from WSL):
+
+```bash
+kubectl -n rook-ceph port-forward svc/rook-ceph-rgw-s3-store 7480:80 &
+```
+
+3. Export credentials and endpoint:
+
+```bash
+export AWS_ACCESS_KEY_ID=$(kubectl -n rook-ceph get secret rook-ceph-object-user-s3-store-admin -o jsonpath='{.data.AccessKey}' | base64 -d)
+export AWS_SECRET_ACCESS_KEY=$(kubectl -n rook-ceph get secret rook-ceph-object-user-s3-store-admin -o jsonpath='{.data.SecretKey}' | base64 -d)
+export AWS_ENDPOINT_URL=http://localhost:7480
+export AWS_DEFAULT_REGION=us-east-1  # Required: prevents InvalidLocationConstraint error
+export AWS_DEFAULT_REGION=us-east-1  # Required: prevents InvalidLocationConstraint error
+```
+
+4. Use AWS CLI:
+
+```bash
+aws s3 mb s3://my-bucket
+aws s3 cp myfile.txt s3://my-bucket/
+aws s3 ls s3://my-bucket/
 ```
 
 ### Remove Ceph

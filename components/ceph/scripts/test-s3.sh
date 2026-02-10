@@ -62,16 +62,29 @@ if [[ -z "$ACCESS_KEY" ]] || [[ -z "$SECRET_KEY" ]]; then
     exit 1
 fi
 
-# Get S3 endpoint
-ENDPOINT=$(kubectl -n rook-ceph get svc rook-ceph-rgw-s3-store -o jsonpath='{.spec.clusterIP}' 2>/dev/null)
-if [[ -z "$ENDPOINT" ]]; then
-    print_error "Could not find RGW service endpoint"
+# Set up port-forward to RGW service (ClusterIP not reachable from WSL)
+RGW_SVC=$(kubectl -n rook-ceph get svc -l app=rook-ceph-rgw -o name 2>/dev/null | head -1)
+if [[ -z "$RGW_SVC" ]]; then
+    print_error "Could not find RGW service"
     print_info "Available services:"
     kubectl -n rook-ceph get svc | grep rgw
     exit 1
 fi
 
-S3_ENDPOINT="http://$ENDPOINT"
+LOCAL_PORT=7480
+print_info "Setting up port-forward ($RGW_SVC -> localhost:$LOCAL_PORT)..."
+kubectl -n rook-ceph port-forward "$RGW_SVC" "$LOCAL_PORT:80" &>/dev/null &
+PF_PID=$!
+trap "kill $PF_PID 2>/dev/null" EXIT
+sleep 2
+
+# Verify port-forward is running
+if ! kill -0 $PF_PID 2>/dev/null; then
+    print_error "Port-forward failed to start"
+    exit 1
+fi
+
+S3_ENDPOINT="http://localhost:$LOCAL_PORT"
 
 print_info "Endpoint: $S3_ENDPOINT"
 print_info "Access Key: ${ACCESS_KEY:0:5}..."
@@ -98,30 +111,61 @@ else
     export AWS_ACCESS_KEY_ID="$ACCESS_KEY"
     export AWS_SECRET_ACCESS_KEY="$SECRET_KEY"
     export AWS_ENDPOINT_URL="$S3_ENDPOINT"
+    export AWS_DEFAULT_REGION="us-east-1"
+    TEST_BUCKET="s3://test-bucket-$$"
+    TEST_FILE=$(mktemp)
+    echo "Hello from Ceph S3 test - $(date)" > "$TEST_FILE"
 
-    # Test listing buckets
+    # Step 1: Create bucket
     echo ""
-    print_info "Testing S3 list buckets..."
-    if aws s3 ls --no-sign-request 2>/dev/null || aws s3 ls 2>/dev/null; then
-        print_success "S3 connection working! ✅"
+    print_info "Step 1: Creating bucket ${TEST_BUCKET}..."
+    if aws s3 mb "$TEST_BUCKET"; then
+        print_success "Bucket created"
     else
-        print_warning "S3 list failed, trying to create a test bucket..."
-
-        # Try creating a bucket
-        if aws s3 mb s3://test-bucket 2>/dev/null; then
-            print_success "Created test bucket successfully! ✅"
-            aws s3 ls
-
-            # Clean up
-            print_info "Cleaning up test bucket..."
-            aws s3 rb s3://test-bucket 2>/dev/null || true
-        else
-            print_error "S3 connection failed ❌"
-            print_info "RGW may still be initializing. Check pod status:"
-            kubectl -n rook-ceph get pods | grep rgw
-            exit 1
-        fi
+        print_error "Failed to create bucket"
+        rm -f "$TEST_FILE"
+        kubectl -n rook-ceph get pods | grep rgw
+        exit 1
     fi
+
+    # Step 2: Upload test file
+    print_info "Step 2: Uploading test file..."
+    if aws s3 cp "$TEST_FILE" "$TEST_BUCKET/test.txt"; then
+        print_success "File uploaded"
+    else
+        print_error "Failed to upload file"
+        aws s3 rb "$TEST_BUCKET" --force 2>/dev/null || true
+        rm -f "$TEST_FILE"
+        exit 1
+    fi
+
+    # Step 3: List bucket contents
+    print_info "Step 3: Listing bucket contents..."
+    aws s3 ls "$TEST_BUCKET/"
+    print_success "List OK"
+
+    # Step 4: Download and verify
+    print_info "Step 4: Downloading and verifying..."
+    DL_FILE=$(mktemp)
+    aws s3 cp "$TEST_BUCKET/test.txt" "$DL_FILE"
+    if diff -q "$TEST_FILE" "$DL_FILE" &>/dev/null; then
+        print_success "Downloaded file matches original"
+    else
+        print_warning "Downloaded file differs from original"
+    fi
+    rm -f "$DL_FILE"
+
+    # Step 5: Delete file
+    print_info "Step 5: Deleting test file..."
+    aws s3 rm "$TEST_BUCKET/test.txt"
+    print_success "File deleted"
+
+    # Step 6: Remove bucket
+    print_info "Step 6: Removing bucket..."
+    aws s3 rb "$TEST_BUCKET"
+    print_success "Bucket removed"
+
+    rm -f "$TEST_FILE"
 fi
 
 echo ""

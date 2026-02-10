@@ -769,13 +769,13 @@ spec:
 
 ```bash
 # Internal (within cluster)
-mongodb://userAdmin:password@mongodb-rs0-0.mongodb-rs0.percona-mongo.svc.cluster.local:27017,mongodb-rs0-1.mongodb-rs0.percona-mongo.svc.cluster.local:27017,mongodb-rs0-2.mongodb-rs0.percona-mongo.svc.cluster.local:27017/admin?replicaSet=rs0
+mongodb://userAdmin:<PASSWORD>@mongodb-rs0-0.mongodb-rs0.percona-mongo.svc.cluster.local:27017,mongodb-rs0-1.mongodb-rs0.percona-mongo.svc.cluster.local:27017,mongodb-rs0-2.mongodb-rs0.percona-mongo.svc.cluster.local:27017/admin?replicaSet=rs0
 
 # Via Service
-mongodb://userAdmin:password@mongodb-rs0.percona-mongo.svc.cluster.local:27017/admin?replicaSet=rs0
+mongodb://userAdmin:<PASSWORD>@mongodb-rs0.percona-mongo.svc.cluster.local:27017/admin?replicaSet=rs0
 
 # Port-forward (dev)
-mongodb://userAdmin:password@localhost:27017/admin?replicaSet=rs0
+mongodb://userAdmin:<PASSWORD>@localhost:27017/admin?replicaSet=rs0
 ```
 
 ---

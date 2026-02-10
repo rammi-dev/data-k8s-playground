@@ -157,6 +157,7 @@ Write-Host ""
 Write-Host "[SUCCESS] Minikube cluster started!" -ForegroundColor Green
 
 # Attach extra VHDs for Ceph OSD (--extra-disks not supported on Hyper-V driver)
+# VMs must be stopped to attach new disks, then restarted
 Write-Host ""
 Write-Host "[INFO] Attaching extra disks for Ceph OSD..." -ForegroundColor Yellow
 
@@ -165,34 +166,67 @@ for ($i = 2; $i -le $NODES; $i++) {
     $vmNames += "minikube-m{0:D2}" -f $i
 }
 
+# Check if any VMs need disks attached
+$needsAttach = $false
 foreach ($vmName in $vmNames) {
     $vm = Get-VM -Name $vmName -ErrorAction SilentlyContinue
-    if (-not $vm) {
-        Write-Host "[WARNING] VM '$vmName' not found, skipping disk attachment" -ForegroundColor Yellow
-        continue
-    }
-
+    if (-not $vm) { continue }
     $vhdPath = Join-Path (Split-Path $vm.HardDrives[0].Path) "ceph-osd.vhdx"
-
-    # Check if disk is already attached
     $existingDisk = $vm.HardDrives | Where-Object { $_.Path -eq $vhdPath }
-    if ($existingDisk) {
-        Write-Host "[SUCCESS] Extra disk already attached to $vmName" -ForegroundColor Green
-        continue
-    }
-
-    # Create the VHD if it doesn't exist
-    if (-not (Test-Path $vhdPath)) {
-        New-VHD -Path $vhdPath -SizeBytes $EXTRA_DISK_SIZE -Dynamic | Out-Null
-        Write-Host "[SUCCESS] Created $($EXTRA_DISK_SIZE / 1GB)GB VHD: $vhdPath" -ForegroundColor Green
-    }
-
-    # Attach to VM
-    Add-VMHardDiskDrive -VMName $vmName -Path $vhdPath
-    Write-Host "[SUCCESS] Attached extra disk to $vmName" -ForegroundColor Green
+    if (-not $existingDisk) { $needsAttach = $true; break }
 }
 
-Write-Host "[SUCCESS] Extra disks attached to all nodes" -ForegroundColor Green
+if ($needsAttach) {
+    # Stop all VMs to attach disks
+    Write-Host "[INFO] Stopping VMs to attach extra disks..." -ForegroundColor Yellow
+    foreach ($vmName in $vmNames) {
+        Stop-VM -Name $vmName -Force -ErrorAction SilentlyContinue
+    }
+    # Wait for all VMs to stop
+    foreach ($vmName in $vmNames) {
+        while ((Get-VM -Name $vmName -ErrorAction SilentlyContinue).State -ne "Off") {
+            Start-Sleep -Seconds 2
+        }
+    }
+
+    foreach ($vmName in $vmNames) {
+        $vm = Get-VM -Name $vmName -ErrorAction SilentlyContinue
+        if (-not $vm) {
+            Write-Host "[WARNING] VM '$vmName' not found, skipping disk attachment" -ForegroundColor Yellow
+            continue
+        }
+
+        $vhdPath = Join-Path (Split-Path $vm.HardDrives[0].Path) "ceph-osd.vhdx"
+
+        # Check if disk is already attached
+        $existingDisk = $vm.HardDrives | Where-Object { $_.Path -eq $vhdPath }
+        if ($existingDisk) {
+            Write-Host "[SUCCESS] Extra disk already attached to $vmName" -ForegroundColor Green
+            continue
+        }
+
+        # Create the VHD if it doesn't exist
+        if (-not (Test-Path $vhdPath)) {
+            New-VHD -Path $vhdPath -SizeBytes $EXTRA_DISK_SIZE -Dynamic | Out-Null
+            Write-Host "[SUCCESS] Created $($EXTRA_DISK_SIZE / 1GB)GB VHD: $vhdPath" -ForegroundColor Green
+        }
+
+        # Attach to stopped VM
+        Add-VMHardDiskDrive -VMName $vmName -Path $vhdPath
+        Write-Host "[SUCCESS] Attached extra disk to $vmName" -ForegroundColor Green
+    }
+
+    # Restart all VMs
+    Write-Host "[INFO] Restarting VMs..." -ForegroundColor Yellow
+    foreach ($vmName in $vmNames) {
+        Start-VM -Name $vmName -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 10  # Wait for VMs to boot
+} else {
+    Write-Host "[SUCCESS] Extra disks already attached to all nodes" -ForegroundColor Green
+}
+
+Write-Host "[SUCCESS] Extra disks ready on all nodes" -ForegroundColor Green
 
 # Wait for nodes
 Write-Host "[INFO] Waiting for nodes to be ready..." -ForegroundColor Yellow
