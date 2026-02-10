@@ -9,11 +9,31 @@ source "$PROJECT_ROOT/scripts/common/utils.sh"
 
 print_info "=== Testing S3 Connectivity ==="
 
-# Check if aws CLI is available
+# Check if aws CLI is available, install if not
 if ! command -v aws &>/dev/null; then
-    print_error "AWS CLI not installed"
-    print_info "Install with: sudo apt-get install -y awscli"
-    exit 1
+    print_info "AWS CLI not found, installing..."
+
+    # Check if we can install (need curl and unzip)
+    if command -v curl &>/dev/null && command -v unzip &>/dev/null; then
+        TMPDIR=$(mktemp -d)
+        cd "$TMPDIR"
+
+        if curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+           unzip -q awscliv2.zip && \
+           sudo ./aws/install --update 2>/dev/null; then
+            print_success "AWS CLI v2 installed successfully"
+            cd - >/dev/null
+            rm -rf "$TMPDIR"
+        else
+            print_warning "Could not install AWS CLI, falling back to curl-based test"
+            cd - >/dev/null
+            rm -rf "$TMPDIR"
+            USE_CURL=true
+        fi
+    else
+        print_warning "curl or unzip not available, falling back to curl-based test"
+        USE_CURL=true
+    fi
 fi
 
 # Check if object store exists
@@ -51,34 +71,56 @@ if [[ -z "$ENDPOINT" ]]; then
     exit 1
 fi
 
-export AWS_ACCESS_KEY_ID="$ACCESS_KEY"
-export AWS_SECRET_ACCESS_KEY="$SECRET_KEY"
-export AWS_ENDPOINT_URL="http://$ENDPOINT"
+S3_ENDPOINT="http://$ENDPOINT"
 
-print_info "Endpoint: $AWS_ENDPOINT_URL"
+print_info "Endpoint: $S3_ENDPOINT"
 print_info "Access Key: ${ACCESS_KEY:0:5}..."
 
-# Test listing buckets
-echo ""
-print_info "Testing S3 list buckets..."
-if aws s3 ls --no-sign-request 2>/dev/null || aws s3 ls 2>/dev/null; then
-    print_success "S3 connection working! ✅"
-else
-    print_warning "S3 list failed, trying to create a test bucket..."
-    
-    # Try creating a bucket
-    if aws s3 mb s3://test-bucket 2>/dev/null; then
-        print_success "Created test bucket successfully! ✅"
-        aws s3 ls
-        
-        # Clean up
-        print_info "Cleaning up test bucket..."
-        aws s3 rb s3://test-bucket 2>/dev/null || true
+# Use curl-based test if AWS CLI not available
+if [[ "${USE_CURL:-}" == "true" ]]; then
+    echo ""
+    print_info "Testing S3 with curl..."
+
+    # Simple GET request to check if RGW is responding
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$S3_ENDPOINT" 2>/dev/null || echo "000")
+
+    if [[ "$HTTP_CODE" == "200" ]] || [[ "$HTTP_CODE" == "403" ]] || [[ "$HTTP_CODE" == "404" ]]; then
+        print_success "S3 gateway is responding (HTTP $HTTP_CODE) ✅"
+        print_info "Note: Install AWS CLI for full S3 testing:"
+        print_info "  curl -sL 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o awscliv2.zip && unzip awscliv2.zip && sudo ./aws/install"
     else
-        print_error "S3 connection failed ❌"
+        print_error "S3 gateway not responding (HTTP $HTTP_CODE) ❌"
         print_info "RGW may still be initializing. Check pod status:"
         kubectl -n rook-ceph get pods | grep rgw
         exit 1
+    fi
+else
+    export AWS_ACCESS_KEY_ID="$ACCESS_KEY"
+    export AWS_SECRET_ACCESS_KEY="$SECRET_KEY"
+    export AWS_ENDPOINT_URL="$S3_ENDPOINT"
+
+    # Test listing buckets
+    echo ""
+    print_info "Testing S3 list buckets..."
+    if aws s3 ls --no-sign-request 2>/dev/null || aws s3 ls 2>/dev/null; then
+        print_success "S3 connection working! ✅"
+    else
+        print_warning "S3 list failed, trying to create a test bucket..."
+
+        # Try creating a bucket
+        if aws s3 mb s3://test-bucket 2>/dev/null; then
+            print_success "Created test bucket successfully! ✅"
+            aws s3 ls
+
+            # Clean up
+            print_info "Cleaning up test bucket..."
+            aws s3 rb s3://test-bucket 2>/dev/null || true
+        else
+            print_error "S3 connection failed ❌"
+            print_info "RGW may still be initializing. Check pod status:"
+            kubectl -n rook-ceph get pods | grep rgw
+            exit 1
+        fi
     fi
 fi
 
@@ -87,4 +129,4 @@ print_success "S3 test complete!"
 print_info "Use these credentials for S3 access:"
 echo "  AWS_ACCESS_KEY_ID=$ACCESS_KEY"
 echo "  AWS_SECRET_ACCESS_KEY=<hidden>"
-echo "  AWS_ENDPOINT_URL=$AWS_ENDPOINT_URL"
+echo "  AWS_ENDPOINT_URL=$S3_ENDPOINT"

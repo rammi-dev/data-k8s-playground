@@ -40,15 +40,14 @@ minikube:
   # cpus and memory are auto-calculated: VM resources - reserved
   # With current settings: cpus=7, memory=38912MB (~38GB)
   disk_size: "40g"
-  kubernetes_version: "v1.34.0"
-  # Extra options for better resource utilization, network performance, and Ceph support
+  kubernetes_version: "v1.31.0"  # Recent stable version (v1.35 is latest)
+  # Extra options for better resource utilization and Ceph support
   extra_config:
     - "kubelet.housekeeping-interval=10s"
     - "kubelet.max-pods=50"              # Ceph creates many pods
-    - "kubelet.serialize-image-pulls=false"   # CRITICAL: Enable parallel pulls (was true, causing sequential downloads)
-    - "kubelet.max-parallel-image-pulls=10"   # Allow 10 concurrent image pulls per node
-    - "kubelet.registry-pull-qps=10"          # Rate limit: 10 image pulls/sec
-    - "kubelet.registry-burst=20"             # Burst allowance for spikes
+    - "kubelet.fail-swap-on=false"       # Allow swap (required for K8s v1.31.0+)
+    # Removed aggressive image pull settings that may cause startup issues
+    # Can be re-enabled after cluster is stable
 
 # Component configurations (enable as needed)
 components:

@@ -11,7 +11,7 @@
 # ============================================
 operator:
   enabled: true
-  
+
   # Resource limits for development environment
   resources:
     limits:
@@ -28,7 +28,7 @@ operator:
   csi:
     enableRbdDriver: true
     enableCephfsDriver: true
-    
+
     # Resource limits for CSI pods
     csiRBDProvisionerResource: |
       - name: csi-provisioner
@@ -60,38 +60,45 @@ operator:
 # ============================================
 cluster:
   enabled: true
-  
+
   # Operator namespace (must match where operator is installed)
   operatorNamespace: rook-ceph
 
   # Ceph cluster configuration
   cephClusterSpec:
     cephVersion:
-      image: quay.io/ceph/ceph:v18.2
+      image: quay.io/ceph/ceph:v20
       allowUnsupported: true
     dataDirHostPath: /var/lib/rook
-    skipUpgradeChecks: false
-    
+    skipUpgradeChecks: true
+
     mon:
-      count: 3
-      allowMultiplePerNode: true  # Required for minikube
-    
+      count: 1
+      allowMultiplePerNode: true
+
     mgr:
       count: 1
+      allowMultiplePerNode: true
       modules:
+        - name: rook
+          enabled: true
         - name: pg_autoscaler
           enabled: true
-    
+
     dashboard:
       enabled: true
       ssl: false
-    
+
+    # Device-based storage - uses extra VHDs attached to each Hyper-V node
     storage:
       useAllNodes: true
-      useAllDevices: false
-      directories:
-        - path: /var/lib/rook
-    
+      useAllDevices: true
+      allowDeviceClassUpdate: true
+      allowOsdCrushWeightUpdate: false
+
+    monitoring:
+      enabled: false
+
     resources:
       mon:
         limits:
@@ -111,14 +118,52 @@ cluster:
         requests:
           cpu: "100m"
           memory: "256Mi"
-    
+
     crashCollector:
       disable: true
-    
+
+    priorityClassNames:
+      all: system-node-critical
+      mgr: system-cluster-critical
+
+    disruptionManagement:
+      managePodBudgets: true
+
+    cephConfig:
+      global:
+        osd_pool_default_size: "1"
+        mon_warn_on_pool_no_redundancy: "false"
+        bdev_flock_retry: "20"
+        bluefs_buffered_io: "false"
+        mon_data_avail_warn: "10"
+
     placement:
       all:
         tolerations:
           - operator: Exists
+
+  # Builtin manager pool (must be size 1 to match default pool size)
+  cephBlockPools:
+    - name: builtin-mgr
+      spec:
+        name: .mgr
+        replicated:
+          size: 1
+          requireSafeReplicaSize: false
+    - name: replicapool
+      spec:
+        replicated:
+          size: 1
+          requireSafeReplicaSize: false
+      storageClass:
+        enabled: true
+        name: ceph-block
+        isDefault: true
+        reclaimPolicy: Delete
+        allowVolumeExpansion: true
+        parameters:
+          imageFormat: "2"
+          imageFeatures: layering
 
   # Object Store (S3 gateway)
   cephObjectStores:
@@ -126,10 +171,10 @@ cluster:
       spec:
         metadataPool:
           replicated:
-            size: 2
+            size: 1
         dataPool:
           replicated:
-            size: 2
+            size: 1
         preservePoolsOnDelete: false
         gateway:
           port: 80
@@ -146,24 +191,6 @@ cluster:
         name: ceph-bucket
         reclaimPolicy: Delete
 
-  # Block storage pool
-  cephBlockPools:
-    - name: replicapool
-      spec:
-        replicated:
-          size: 2
-      storageClass:
-        enabled: true
-        name: ceph-block
-        isDefault: false
-        reclaimPolicy: Delete
-        allowVolumeExpansion: true
-        parameters:
-          imageFormat: "2"
-          imageFeatures: layering
-
   # Toolbox for debugging
   toolbox:
     enabled: true
-
-

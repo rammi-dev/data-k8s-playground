@@ -1,6 +1,6 @@
 #!/bin/bash
 # Remove Rook-Ceph from the Kubernetes cluster
-# Run this script from inside the VM
+# Works from WSL with Hyper-V minikube or inside Vagrant VM
 set -e
 
 # Determine project root (works from any location)
@@ -17,10 +17,9 @@ fi
 source "$PROJECT_ROOT/scripts/common/utils.sh"
 source "$PROJECT_ROOT/scripts/common/config-loader.sh"
 
-# Check if running inside VM
-if ! is_vagrant_vm && [[ ! -f /.dockerenv ]]; then
-    print_error "This script should be run inside the Vagrant VM"
-    print_info "First SSH into the VM: ./scripts/vagrant/vagrant.sh ssh"
+# Check if Kubernetes cluster is accessible
+if ! kubectl cluster-info &>/dev/null; then
+    print_error "Kubernetes cluster is not accessible"
     exit 1
 fi
 
@@ -49,16 +48,41 @@ kubectl -n "$CEPH_NAMESPACE" delete cephblockpool --all --timeout=60s 2>/dev/nul
 kubectl -n "$CEPH_NAMESPACE" delete cephfilesystem --all --timeout=60s 2>/dev/null || true
 kubectl -n "$CEPH_NAMESPACE" delete cephobjectstore --all --timeout=60s 2>/dev/null || true
 
+# Delete OSD PVCs (used by PVC-based storage)
+print_info "Deleting OSD PVCs..."
+kubectl -n "$CEPH_NAMESPACE" delete pvc -l app=rook-ceph-osd --timeout=60s 2>/dev/null || true
+kubectl -n "$CEPH_NAMESPACE" delete pvc --all --timeout=60s 2>/dev/null || true
+
+# Delete Ceph StorageClasses
+print_info "Deleting Ceph StorageClasses..."
+kubectl delete storageclass ceph-block ceph-filesystem ceph-bucket 2>/dev/null || true
+
 # Delete namespace (this will clean up remaining resources)
 if kubectl get namespace "$CEPH_NAMESPACE" &>/dev/null; then
     print_info "Deleting namespace $CEPH_NAMESPACE..."
     kubectl delete namespace "$CEPH_NAMESPACE" --timeout=120s || true
 fi
 
-# Clean up Rook data on nodes
-print_info "Cleaning up Rook data on nodes..."
-for node in $(kubectl get nodes -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
-    minikube ssh -n "$node" "sudo rm -rf /var/lib/rook" 2>/dev/null || true
-done
+# Remove finalizers from stuck resources if namespace deletion hangs
+if kubectl get namespace "$CEPH_NAMESPACE" &>/dev/null; then
+    print_warning "Namespace stuck, removing finalizers..."
+    kubectl get cephcluster -n "$CEPH_NAMESPACE" -o name 2>/dev/null | while read obj; do
+        kubectl patch "$obj" -n "$CEPH_NAMESPACE" -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
+    done
+    kubectl delete namespace "$CEPH_NAMESPACE" --force --grace-period=0 2>/dev/null || true
+fi
+
+# Clean up Rook data on nodes (if minikube is accessible)
+if command -v minikube &>/dev/null && minikube status &>/dev/null; then
+    print_info "Cleaning up Rook data on minikube nodes..."
+    for node in $(kubectl get nodes -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
+        minikube ssh -n "$node" "sudo rm -rf /var/lib/rook" 2>/dev/null || true
+    done
+fi
+
+# Delete any remaining CRDs (optional, for full cleanup)
+print_info "Cleaning up Ceph CRDs..."
+kubectl delete crd -l app.kubernetes.io/part-of=rook-ceph 2>/dev/null || true
 
 print_success "Rook-Ceph has been removed."
+print_info "Note: Run 'kubectl get pv' to verify no orphaned PVs remain."

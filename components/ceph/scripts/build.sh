@@ -27,9 +27,9 @@ HELM_DIR="$COMPONENT_DIR/helm"
 source "$PROJECT_ROOT/scripts/common/utils.sh"
 source "$PROJECT_ROOT/scripts/common/config-loader.sh"
 
-# Check if running inside VM
-if ! is_vagrant_vm && [[ ! -f /.dockerenv ]]; then
-    print_error "This script should be run inside the Vagrant VM"
+# Check if running inside VM (only enforced if REQUIRE_VM=1)
+if [[ "${REQUIRE_VM:-}" == "1" ]] && ! is_vagrant_vm && [[ ! -f /.dockerenv ]]; then
+    print_error "This script must be run inside the Vagrant VM (REQUIRE_VM=1 is set)"
     print_info "First SSH into the VM: ./scripts/vagrant/vagrant.sh ssh"
     exit 1
 fi
@@ -41,10 +41,12 @@ if [[ "$CEPH_ENABLED" != "true" ]]; then
     exit 1
 fi
 
-# Check if minikube is running
-if ! minikube status &>/dev/null; then
-    print_error "Minikube is not running"
-    print_info "Start minikube first: ./scripts/minikube/build.sh"
+# Check if Kubernetes cluster is accessible
+if ! kubectl cluster-info &>/dev/null; then
+    print_error "Kubernetes cluster is not accessible"
+    print_info "Make sure kubectl is configured and the cluster is running"
+    print_info "  - From Vagrant VM: ./scripts/minikube/build.sh"
+    print_info "  - From WSL with Windows minikube: run setup-kubeconfig.sh first"
     exit 1
 fi
 
@@ -90,7 +92,7 @@ print_info "Phase 2: Installing Ceph Cluster..."
 helm upgrade --install rook-ceph-cluster rook-release/rook-ceph-cluster \
     --namespace "$CEPH_NAMESPACE" \
     --version "$CEPH_CHART_VERSION" \
-    --values "$HELM_DIR/values.yaml" \
+    --values "$HELM_DIR/cluster-values.yaml" \
     --set operatorNamespace="$CEPH_NAMESPACE" \
     --wait --timeout=900s
 
