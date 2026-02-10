@@ -1,0 +1,422 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+suite: Dremio EE Helm Chart.MongoDB Hooks Tests
+
+templates:
+  - mongodb-hooks.yaml
+
+release:
+  name: my-release
+  namespace: my-namespace
+
+tests:
+  - it: should create service account for pre-delete hook
+    asserts:
+      - hasDocuments: { count: 4 }
+      - isKind:
+          of: ServiceAccount
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: my-release-mongodb-pre-delete
+        documentIndex: 0
+      - equal:
+          path: metadata.namespace
+          value: my-namespace
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-delete
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation,hook-succeeded
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-10"
+        documentIndex: 0
+
+  - it: should include custom serviceAccountAnnotations when configured
+    set:
+      mongodbHooks:
+        serviceAccountAnnotations:
+          eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/my-role"
+          example.com/custom-annotation: "custom-value"
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-delete
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation,hook-succeeded
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-10"
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: "arn:aws:iam::123456789012:role/my-role"
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["example.com/custom-annotation"]
+          value: "custom-value"
+        documentIndex: 0
+
+  - it: should include single custom serviceAccountAnnotation when configured
+    set:
+      mongodbHooks:
+        serviceAccountAnnotations:
+          eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/my-role"
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-delete
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: "arn:aws:iam::123456789012:role/my-role"
+        documentIndex: 0
+
+  - it: should only have helm hook annotations when serviceAccountAnnotations is empty
+    set:
+      mongodbHooks:
+        serviceAccountAnnotations: {}
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-delete
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation,hook-succeeded
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-10"
+        documentIndex: 0
+      - notExists:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+        documentIndex: 0
+
+  - it: should create role for pre-delete hook
+    asserts:
+      - isKind:
+          of: Role
+        documentIndex: 1
+      - equal:
+          path: metadata.name
+          value: my-release-mongodb-pre-delete-role
+        documentIndex: 1
+      - equal:
+          path: metadata.namespace
+          value: my-namespace
+        documentIndex: 1
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-delete
+        documentIndex: 1
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation,hook-succeeded
+        documentIndex: 1
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-10"
+        documentIndex: 1
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["psmdb.dremio.com"]
+            resources: ["perconaservermongodbs"]
+            verbs: ["get", "delete", "list", "watch", "patch"]
+        documentIndex: 1
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["psmdb.dremio.com"]
+            resources: ["perconaservermongodbbackups"]
+            verbs: ["get", "delete", "list", "watch", "patch"]
+        documentIndex: 1
+
+  - it: should create role binding for pre-delete hook
+    asserts:
+      - isKind:
+          of: RoleBinding
+        documentIndex: 2
+      - equal:
+          path: metadata.name
+          value: my-release-mongodb-pre-delete-rolebinding
+        documentIndex: 2
+      - equal:
+          path: metadata.namespace
+          value: my-namespace
+        documentIndex: 2
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-delete
+        documentIndex: 2
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation,hook-succeeded
+        documentIndex: 2
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-10"
+        documentIndex: 2
+      - equal:
+          path: roleRef.apiGroup
+          value: rbac.authorization.k8s.io
+        documentIndex: 2
+      - equal:
+          path: roleRef.kind
+          value: Role
+        documentIndex: 2
+      - equal:
+          path: roleRef.name
+          value: my-release-mongodb-pre-delete-role
+        documentIndex: 2
+      - contains:
+          path: subjects
+          content:
+            kind: ServiceAccount
+            name: my-release-mongodb-pre-delete
+            namespace: my-namespace
+        documentIndex: 2
+
+  - it: should create job for pre-delete hook
+    asserts:
+      - isKind:
+          of: Job
+        documentIndex: 3
+      - equal:
+          path: metadata.name
+          value: delete-mongodbcluster
+        documentIndex: 3
+      - equal:
+          path: metadata.namespace
+          value: my-namespace
+        documentIndex: 3
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-delete
+        documentIndex: 3
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation,hook-succeeded
+        documentIndex: 3
+      - equal:
+          path: spec.backoffLimit
+          value: 2
+        documentIndex: 3
+      - equal:
+          path: spec.activeDeadlineSeconds
+          value: 300
+        documentIndex: 3
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: my-release-mongodb-pre-delete
+        documentIndex: 3
+      - equal:
+          path: spec.template.spec.restartPolicy
+          value: Never
+        documentIndex: 3
+
+  - it: should not include nodeSelector by default
+    asserts:
+      - notExists:
+          path: spec.template.spec.nodeSelector
+        documentIndex: 3
+
+  - it: mongodbHooks.nodeSelector should take priority over global nodeSelector
+    set:
+      mongodbHooks:
+        nodeSelector:
+          mongodb-hook: "true"
+      nodeSelector:
+        environment: production
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            mongodb-hook: "true"
+        documentIndex: 3
+
+  - it: global nodeSelector should apply when mongodbHooks.nodeSelector is not set
+    set:
+      nodeSelector:
+        environment: production
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            environment: production
+        documentIndex: 3
+
+  - it: should support multiple nodeSelector labels for mongodbHooks
+    set:
+      mongodbHooks:
+        nodeSelector:
+          node-type: worker
+          environment: production
+          workload: mongodb-cleanup
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            node-type: worker
+            environment: production
+            workload: mongodb-cleanup
+        documentIndex: 3
+
+  - it: should not include nodeSelector when both global and mongodbHooks nodeSelector are empty
+    set:
+      mongodbHooks:
+        nodeSelector: {}
+      nodeSelector: {}
+    asserts:
+      - notExists:
+          path: spec.template.spec.nodeSelector
+        documentIndex: 3
+
+  - it: should not include tolerations by default
+    asserts:
+      - notExists:
+          path: spec.template.spec.tolerations
+        documentIndex: 3
+
+  - it: mongodbHooks.tolerations should take priority over global tolerations
+    set:
+      mongodbHooks:
+        tolerations:
+          - key: "mongodb-hook"
+            operator: "Equal"
+            value: "true"
+            effect: "NoSchedule"
+      tolerations:
+        - key: "environment"
+          operator: "Equal"
+          value: "production"
+          effect: "NoSchedule"
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value:
+            - key: "mongodb-hook"
+              operator: "Equal"
+              value: "true"
+              effect: "NoSchedule"
+        documentIndex: 3
+
+  - it: global tolerations should apply when mongodbHooks.tolerations is not set
+    set:
+      tolerations:
+        - key: "environment"
+          operator: "Equal"
+          value: "production"
+          effect: "NoSchedule"
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value:
+            - key: "environment"
+              operator: "Equal"
+              value: "production"
+              effect: "NoSchedule"
+        documentIndex: 3
+
+  - it: should support multiple tolerations for mongodbHooks
+    set:
+      mongodbHooks:
+        tolerations:
+          - key: "node-type"
+            operator: "Equal"
+            value: "worker"
+            effect: "NoSchedule"
+          - key: "environment"
+            operator: "Equal"
+            value: "production"
+            effect: "NoSchedule"
+          - key: "workload"
+            operator: "Equal"
+            value: "mongodb-cleanup"
+            effect: "NoExecute"
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value:
+            - key: "node-type"
+              operator: "Equal"
+              value: "worker"
+              effect: "NoSchedule"
+            - key: "environment"
+              operator: "Equal"
+              value: "production"
+              effect: "NoSchedule"
+            - key: "workload"
+              operator: "Equal"
+              value: "mongodb-cleanup"
+              effect: "NoExecute"
+        documentIndex: 3
+
+  - it: should not include tolerations when both global and mongodbHooks tolerations are empty
+    set:
+      mongodbHooks:
+        tolerations: []
+      tolerations: []
+    asserts:
+      - notExists:
+          path: spec.template.spec.tolerations
+        documentIndex: 3
+
+  - it: should support tolerations with different operators and effects
+    set:
+      mongodbHooks:
+        tolerations:
+          - key: "dedicated"
+            operator: "Exists"
+            effect: "NoSchedule"
+          - key: "spot-instance"
+            operator: "Equal"
+            value: "true"
+            effect: "PreferNoSchedule"
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value:
+            - key: "dedicated"
+              operator: "Exists"
+              effect: "NoSchedule"
+            - key: "spot-instance"
+              operator: "Equal"
+              value: "true"
+              effect: "PreferNoSchedule"
+        documentIndex: 3
+
+  # PriorityClassName tests
+  - it: should not include priorityClassName by default
+    asserts:
+      - notExists:
+          path: spec.template.spec.priorityClassName
+        documentIndex: 3
+  - it: mongodbHooks.priorityClassName should set priorityClassName
+    set:
+      mongodbHooks:
+        priorityClassName: mongodb-high-priority
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: mongodb-high-priority
+        documentIndex: 3
+  - it: should not include priorityClassName when mongodbHooks.priorityClassName is empty
+    set:
+      mongodbHooks:
+        priorityClassName: ""
+    asserts:
+      - notExists:
+          path: spec.template.spec.priorityClassName
+        documentIndex: 3

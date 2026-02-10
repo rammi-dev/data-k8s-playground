@@ -1,0 +1,214 @@
+
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+{{- if $.Values.telemetry.enabled -}}
+# Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: telemetry-collector
+  name: telemetry-collector
+  {{- with .Values.telemetry.serviceAccountAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- include "dremio.imagePullSecrets" $ }}
+---
+# Role for telemetry observer
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: telemetry-collector
+  labels:
+    app: telemetry-collector
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - events
+      - pods
+      - pods/status
+      - replicationcontrollers
+      - replicationcontrollers/status
+      - resourcequotas
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - daemonsets
+      - deployments
+      - replicasets
+      - statefulsets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - extensions
+    resources:
+      - daemonsets
+      - deployments
+      - replicasets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - batch
+    resources:
+      - jobs
+      - cronjobs
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - autoscaling
+    resources:
+      - horizontalpodautoscalers
+    verbs:
+      - get
+      - list
+      - watch
+---
+# RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: telemetry-collector
+  labels:
+    app: telemetry-collector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: telemetry-collector
+subjects:
+  - kind: ServiceAccount
+    name: telemetry-collector
+---
+# StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: telemetry-collector
+  labels:
+    app: telemetry-collector
+  {{- include "dremio.telemetry.annotations" $ | nindent 2 }}
+spec:
+  selector:
+    matchLabels:
+      app: telemetry-collector
+  serviceName: telemetry-collector-hs
+  replicas: 1
+  updateStrategy:
+    type: RollingUpdate
+  podManagementPolicy: Parallel
+  template:
+    metadata:
+      labels:
+        app: telemetry-collector
+        {{- include "dremio.telemetry.podLabels" $ | nindent 8 }}
+      annotations:
+        dremio-configmap/checksum: {{ include (print $.Template.BasePath "/dremio-telemetry-configmap.yaml") . | sha256sum }}
+        metrics.dremio.com/scrape: "true"
+        metrics.dremio.com/port: "8888"
+        metrics.dremio.com/path: "/metrics"
+        cluster.dremio.com/type: {{ include "dremio.cluster.type" $ | quote }}
+        {{- include "dremio.telemetry.podAnnotations" $ | nindent 8 }}
+    spec:
+      containers:
+        - name: otelcollector
+          {{- include "dremio.telemetry.containerSecurityContext" $ | nindent 10 }}
+          image: {{ $.Values.telemetry.image.repository }}:{{ $.Values.telemetry.image.tag }}
+          imagePullPolicy: {{ $.Values.telemetry.image.pullPolicy }}
+          resources:
+            limits:
+              cpu: {{ $.Values.telemetry.resources.limits.cpu }}
+              memory: {{ $.Values.telemetry.resources.limits.memory }}
+            requests:
+              cpu: {{ $.Values.telemetry.resources.requests.cpu }}
+              memory: {{ $.Values.telemetry.resources.requests.memory }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol-contrib/config.yaml
+              subPath: config.yaml
+            - name: license
+              mountPath: /var/opt/dremio/license
+              subPath: license
+          env:
+            - name: GOMEMLIMIT
+              value: {{ $.Values.telemetry.goMemLimit }}
+            - name: DREMIO_CLUSTER_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: dremio-cluster-id
+                  key: cluster_id
+            - name: DREMIO_CLUSTER_TYPE
+              value: {{ include "dremio.cluster.type" $ | quote }}
+            - name: NAMESPACE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            {{- if $.Values.telemetry.extraEnvs }}
+            {{- toYaml ($.Values.telemetry.extraEnvs) | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: grpc-otlp
+              containerPort: 4317
+            - name: metrics
+              containerPort: 8888
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            periodSeconds: 5
+            failureThreshold: 5
+          startupProbe:
+            httpGet:
+              path: /
+              port: 13133
+            periodSeconds: 5
+            failureThreshold: 4
+      serviceAccountName: telemetry-collector
+      {{- include "dremio.telemetry.priorityClassName" $ | nindent 6 }}
+      {{- include "dremio.telemetry.nodeSelector" $ | nindent 6 }}
+      {{- include "dremio.telemetry.tolerations" $ | nindent 6 }}
+      {{- include "dremio.telemetry.podSecurityContext" $ | nindent 6 }}
+      volumes:
+        - name: config
+          configMap:
+            name: dremio-telemetry-config
+        - name: license
+          secret:
+            secretName: dremio-license
+---
+# Service definition
+apiVersion: v1
+kind: Service
+metadata:
+  name: telemetry-collector-hs
+  labels:
+    app: telemetry-collector
+spec:
+  ports:
+    - name: grpc-otlp
+      port: 4317
+      protocol: TCP
+      targetPort: 4317
+  clusterIP: None
+  selector:
+    app: telemetry-collector
+{{- end }}

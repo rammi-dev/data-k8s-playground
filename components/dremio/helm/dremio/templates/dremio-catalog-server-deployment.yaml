@@ -1,0 +1,151 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dremio.catalog.app.name" $ }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: dremio
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app: {{ include "dremio.catalog.app.name" $ }}
+    app-group: dremio
+    catalog-type: internal
+  {{- include "dremio.catalog.annotations" $ | nindent 2 }}
+spec:
+  replicas: {{ .Values.catalog.replicas }}
+  selector:
+    matchLabels:
+      app: {{ include "dremio.catalog.app.name" $ }}
+      catalog-type: internal
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dremio
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app: {{ include "dremio.catalog.app.name" $ }}
+        app-group: dremio
+        catalog-type: internal
+      {{- include "dremio.catalog.podLabels" $ | nindent 8 }}
+      annotations:
+        metrics.dremio.com/scrape: "true"
+        metrics.dremio.com/port: {{ include "dremio.catalog.ports.mgmt.internal" $ | quote }}
+        metrics.dremio.com/path: "/metrics"
+        {{- include "dremio.catalog.podAnnotations" $ | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.catalog.serviceAccount }}
+      {{- include "dremio.catalog.priorityClassName" $ | nindent 6 }}
+      {{- include "dremio.catalog.nodeSelector" $ | nindent 6 }}
+      {{- include "dremio.catalog.tolerations" $ | nindent 6 }}
+      {{- include "dremio.catalog.podSecurityContext" $ | nindent 6 }}
+      initContainers:
+        {{- include "dremio.catalog.copyRunScriptsInitContainer" . | nindent 8 }}
+        {{- include "dremio.mongodb.waitForMongoInitContainer" . | nindent 8 }}
+        {{- include "dremio.catalog.extraInitContainers" . | nindent 8 }}
+      containers:
+        - name: {{ include "dremio.catalog.app.name" $ }}
+          {{- include "dremio.catalog.containerSecurityContext" $ | nindent 10 }}
+          image: {{ $.Values.catalog.image.repository }}:{{ $.Values.catalog.image.tag }}
+          imagePullPolicy: {{ $.Values.catalog.image.pullPolicy }}
+          env:
+            - name: polaris.persistence.backend.type
+              value: "MongoDb"
+            # polaris.backend.name is kept for compatibility with older catalog images
+            - name: polaris.backend.name
+              value: "MongoDb"
+            - name: polaris.persistence.cache.reference-ttl
+              value: PT0S
+            - name: quarkus.http.port
+              value: "{{ include "dremio.catalog.ports.http.internal" $ }}"
+            - name: quarkus.management.port
+              value: "{{ include "dremio.catalog.ports.mgmt.internal" $ }}"
+            - name: quarkus.grpc.server.port
+              value: "{{ include "dremio.catalog.ports.grpc" $ }}"
+            - name: quarkus.grpc.clients.roles.host
+              value: "dremio-master-0.dremio-cluster-pod.{{ .Release.Namespace }}.svc.{{ .Values.cluster.domain }}"
+            - name: quarkus.grpc.clients.roles.port
+              value: "45679"
+            - name: quarkus.grpc.clients.fgac.host
+              value: "dremio-master-0.dremio-cluster-pod.{{ .Release.Namespace }}.svc.{{ .Values.cluster.domain }}"
+            - name: quarkus.grpc.clients.fgac.port
+              value: "45679"
+            - name: quarkus.mongodb.database
+              value: "{{ include "dremio.mongodb.db" $ }}"
+            - name: quarkus.mongodb.connection-string
+              value: "{{ include "dremio.mongodb.connectionString" $ }}"
+            - name: "quarkus.mongodb.credentials.username"
+              value: "{{ include "dremio.mongodb.user" $ }}"
+            - name: "quarkus.mongodb.credentials.password"
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ include "dremio.mongodb.userSecret" $ }}"
+                  key: "{{ include "dremio.mongodb.user" $ }}"
+            - name: dremio.catalog.storage.enable-vended-credential-refresh
+              value: "{{ $.Values.catalog.storage.enableVendedCredentialRefresh }}"
+            {{- include "dremio.catalog.storage.env" $ | nindent 12 }}
+            {{- include "dremio.catalog.extraStartParams" $ | nindent 12 }}
+            {{- if .Values.catalog.extraEnvs }}
+            {{- tpl (toYaml .Values.catalog.extraEnvs) . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: run-scripts
+              mountPath: /opt/jboss/container/java/run
+            - name: temp-dir
+              mountPath: /tmp
+              readOnly: false
+            {{- if .Values.catalog.storage.gcs.useCredentialsFile }}
+            - name: google-cloud-credentials
+              mountPath: /opt/dremio/gcs
+              readOnly: true
+            {{ end }}
+            {{- if .Values.catalog.extraVolumeMounts }}
+            {{ tpl (toYaml .Values.catalog.extraVolumeMounts) . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: catalog-http
+              containerPort: {{ include "dremio.catalog.ports.http.internal" $ }}
+              protocol: TCP
+            - name: catalog-mgmt
+              containerPort: {{ include "dremio.catalog.ports.mgmt.internal" $ }}
+              protocol: TCP
+            - name: catalog-grpc
+              containerPort: {{ include "dremio.catalog.ports.grpc" $ }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /q/health/live
+              port: catalog-mgmt
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 5
+            timeoutSeconds: 10
+            terminationGracePeriodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /q/health/ready
+              port: catalog-mgmt
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 5
+            timeoutSeconds: 10
+          resources:
+            {{- tpl (toYaml .Values.catalog.resources) . | nindent 12 }}
+      volumes:
+        - name: run-scripts
+          emptyDir: {}
+        - name: temp-dir
+          emptyDir: {}
+        {{- if .Values.catalog.storage.gcs.useCredentialsFile }}
+        - name: google-cloud-credentials
+          secret:
+            secretName: {{ include "dremio.catalog.storage.gcs.secretName" $ }}
+        {{ end }}
+        {{- if .Values.catalog.extraVolumes }}
+        {{ tpl (toYaml .Values.catalog.extraVolumes) . | nindent 8 }}
+        {{- end }}

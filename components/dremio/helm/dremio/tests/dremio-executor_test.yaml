@@ -1,0 +1,872 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+suite: Dremio EE Helm Chart.Executor Tests
+templates:
+  - dremio-executor.yaml
+  - dremio-configmap.yaml
+set:
+  distStorage:
+    type: gcp
+    gcp:
+      bucketName: test-bucket
+      authentication: auto
+      credentials:
+        clientEmail: test@example.com
+        privateKey: test-private-key
+  executor.engines: ["default"]
+tests:
+  - it: default engine should render
+    template: dremio-executor.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: dremio-executor
+      - isKind:
+          of: StatefulSet
+  - it: should include extra environment variables set at the root level in values.yaml
+    template: dremio-executor.yaml
+    set:
+      extraEnvs:
+        - name: TEST_VARIABLE_1
+          value: test_value
+        - name: TEST_VARIABLE_2
+          value: test_value
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TEST_VARIABLE_1
+            value: test_value
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TEST_VARIABLE_2
+            value: test_value
+  - it: environment variables set at executor.extraEnvs should take
+      precedence over environment variables set at root level
+    template: dremio-executor.yaml
+    set:
+      extraEnvs:
+        - name: TEST_ROOT_VARIABLE_1
+          value: test_value
+        - name: TEST_ROOT_VARIABLE_2
+          value: test_value
+      executor:
+        extraEnvs:
+          - name: TEST_EXECUTOR_VARIABLE_1
+            value: test_value
+          - name: TEST_EXECUTOR_VARIABLE_2
+            value: test_value
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            - name: TEST_ROOT_VARIABLE_1
+              value: test_value
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            - name: TEST_ROOT_VARIABLE_2
+              value: test_value
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TEST_EXECUTOR_VARIABLE_1
+            value: test_value
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TEST_EXECUTOR_VARIABLE_2
+            value: test_value
+  - it: environment variable names cannot begin with 'DREMIO_'
+    template: dremio-executor.yaml
+    set:
+      executor:
+        extraEnvs:
+          - name: DREMIO_TEST
+            value: test_value
+    asserts:
+      - failedTemplate:
+          errorMessage: "Environment variables cannot begin with DREMIO"
+  - it: environment variable names can contain 'DREMIO'
+    template: dremio-executor.yaml
+    set:
+      executor:
+        extraEnvs:
+          - name: TEST_DREMIO
+            value: test_value
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TEST_DREMIO
+            value: test_value
+  - it: should write logs to file by default
+    template: dremio-executor.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "0"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+            value: /opt/dremio/log
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+            mountPath: /opt/dremio/log
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes: [ "ReadWriteOnce" ]
+              resources:
+                requests:
+                  storage: 128Gi
+
+  # Volume size configuration tests
+  - it: should use default volume size for executor logs
+    template: dremio-executor.yaml
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 128Gi
+
+  - it: should use custom volume size when specified at executor level
+    template: dremio-executor.yaml
+    set:
+      executor:
+        log:
+          volume:
+            size: 100Gi
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 100Gi
+
+  - it: should use engine-specific volume size when specified
+    template: dremio-executor.yaml
+    set:
+      executor:
+        engines: [ "engine1" ]
+        log:
+          volume:
+            size: 100Gi
+        engineOverride:
+          engine1:
+            log:
+              volume:
+                size: 200Gi
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 200Gi
+
+  # Storage class tests
+  - it: should use default storage class when not specified
+    template: dremio-executor.yaml
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes: [ "ReadWriteOnce" ]
+              resources:
+                requests:
+                  storage: 128Gi
+      - notExists:
+          path: spec.volumeClaimTemplates[?(@.metadata.name == "dremio-log-volume")].spec.storageClassName
+
+  - it: should use global storage class for log volume
+    template: dremio-executor.yaml
+    set:
+      storageClass: fast-ssd
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 128Gi
+              storageClassName: fast-ssd
+
+  - it: should use executor logs storage class when specified
+    template: dremio-executor.yaml
+    set:
+      storageClass: fast-ssd
+      executor:
+        log:
+          volume:
+            storageClass: premium-ssd
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 128Gi
+              storageClassName: premium-ssd
+
+  # Multiple engines tests
+  - it: should create separate StatefulSets for multiple engines with different log configs
+    template: dremio-executor.yaml
+    set:
+      executor:
+        engines: [ "engine1", "engine2" ]
+        engineOverride:
+          engine1:
+            log:
+              enabled: true
+          engine2:
+            log:
+              enabled: false
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "0"
+      - documentIndex: 1
+        contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "1"
+
+  # Environment variable validation
+  - it: should set correct environment variables for file logging
+    template: dremio-executor.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "0"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+            value: /opt/dremio/log
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "1"
+
+  - it: should set correct environment variables for console logging
+    template: dremio-executor.yaml
+    set:
+      dremio:
+        log:
+          enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "1"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "0"
+
+  # Volume mount path tests
+  - it: should mount log volume at correct path
+    template: dremio-executor.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+            mountPath: /opt/dremio/log
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+            mountPath: /opt/dremio/logs
+
+  # Access modes tests
+  - it: should use ReadWriteOnce access mode for log volume
+    template: dremio-executor.yaml
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes: [ "ReadWriteOnce" ]
+              resources:
+                requests:
+                  storage: 128Gi
+
+  # Volume size format tests
+  - it: should handle different volume size formats
+    template: dremio-executor.yaml
+    set:
+      executor:
+        log:
+          volume:
+            size: "500Mi"
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: "500Mi"
+
+  - it: should handle large volume sizes
+    template: dremio-executor.yaml
+    set:
+      executor:
+        log:
+          volume:
+            size: "2Ti"
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: "2Ti"
+  # Log Path Helper Tests (dremio.executor.log.path)
+  - it: should set correct log environment variables when writeLogsToFile is true
+    template: dremio-executor.yaml
+    set:
+      executor:
+        writeLogsToFile: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "0"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+            value: /opt/dremio/log
+
+  - it: should set correct log environment variables when writeLogsToFile is false
+    template: dremio-executor.yaml
+    set:
+      executor:
+        writeLogsToFile: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "1"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+
+  - it: should prioritize engine-specific writeLogsToFile over executor level
+    template: dremio-executor.yaml
+    set:
+      executor:
+        engines: [ "test-engine" ]
+        writeLogsToFile: false
+        engineOverride:
+          test-engine:
+            writeLogsToFile: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "0"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+            value: /opt/dremio/log
+
+  # Log Volume Mount Helper Tests (dremio.executor.log.volumeMount)
+  - it: should include log volume mount when logging is enabled
+    template: dremio-executor.yaml
+    set:
+      executor:
+        writeLogsToFile: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+            mountPath: /opt/dremio/log
+
+  - it: should not include log volume mount when logging is disabled
+    template: dremio-executor.yaml
+    set:
+      executor:
+        writeLogsToFile: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+
+  - it: should include log volume mount for engine-specific override
+    template: dremio-executor.yaml
+    set:
+      executor:
+        engines: [ "test-engine" ]
+        writeLogsToFile: false
+        engineOverride:
+          test-engine:
+            writeLogsToFile: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+            mountPath: /opt/dremio/log
+
+  # Log Volume Claim Template Helper Tests (dremio.executor.log.volumeClaimTemplate)
+  - it: should not create log volume claim template when logging is disabled
+    template: dremio-executor.yaml
+    set:
+      executor:
+        writeLogsToFile: false
+    asserts:
+      - notContains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+
+  # Log Storage Class Helper Tests (dremio.executor.log.storageClass)
+  - it: should use global storage class for log volume
+    template: dremio-executor.yaml
+    set:
+      storageClass: global-storage
+      executor:
+        writeLogsToFile: true
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 128Gi
+              storageClassName: global-storage
+
+  - it: should use executor log storage class when specified
+    template: dremio-executor.yaml
+    set:
+      storageClass: global-storage
+      executor:
+        writeLogsToFile: true
+        logStorageClass: executor-log-storage
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 128Gi
+              storageClassName: executor-log-storage
+
+  - it: should use engine-specific log storage class when specified
+    template: dremio-executor.yaml
+    set:
+      storageClass: global-storage
+      executor:
+        engines: [ "test-engine" ]
+        writeLogsToFile: true
+        logStorageClass: executor-log-storage
+        engineOverride:
+          test-engine:
+            logStorageClass: engine-log-storage
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 128Gi
+              storageClassName: engine-log-storage
+  - it: should not create log volume mount when disabled
+    template: dremio-executor.yaml
+    set:
+      dremio:
+        log:
+          enabled: false
+      executor:
+        log:
+          enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+
+  - it: should use default volume size when not specified
+    template: dremio-executor.yaml
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 128Gi
+
+  - it: should use default init container image
+    template: dremio-executor.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: quay.io/dremio/busybox:1.37.0-glibc
+      - equal:
+          path: spec.template.spec.initContainers[0].imagePullPolicy
+          value: IfNotPresent
+  - it: should use custom init container image
+    template: dremio-executor.yaml
+    set:
+      busyBox:
+        image:
+          repository: custom-image
+          tag: custom-tag
+          pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: custom-image:custom-tag
+      - equal:
+          path: spec.template.spec.initContainers[0].imagePullPolicy
+          value: Always
+  - it: catalogservices should be excluded when feature is disabled (JVM options excluded)
+    template: dremio-executor.yaml
+    set:
+      catalogservices:
+        enabled: false
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].env[2].value
+          pattern: dremiocatalog*
+  - it: JVM options for catalogservices should be included by default
+    template: dremio-executor.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[2].value
+          pattern: dremiocatalog*
+  - it: "should create multiple engines with different resource configurations"
+    template: dremio-executor.yaml
+    set:
+      executor:
+        engines: ["default", "high-capacity", "low-capacity"]
+        engineOverride:
+          high-capacity:
+            resources:
+              requests:
+                cpu: "32"
+                memory: 128Gi
+              limits:
+                cpu: "32"
+                memory: 128Gi
+          low-capacity:
+            resources:
+              requests:
+                cpu: "0.5"
+                memory: 32Gi
+              limits:
+                cpu: "0.5"
+                memory: 32Gi
+        resources:
+          requests:
+            cpu: "16"
+            memory: 64Gi
+          limits:
+            memory: 64Gi
+    asserts:
+      # Check that we have two executor StatefulSet documents
+      - hasDocuments:
+          count: 3
+          selector:
+            kind: StatefulSet
+      # Verify default engine gets default resources
+      - documentIndex: 0
+        equal:
+          path: metadata.name
+          value: dremio-executor
+      - documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: "16"
+      - documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 64Gi
+      - documentIndex: 0
+        matchRegex:
+          path: spec.template.spec.containers[0].env[2].value
+          pattern: -XX:ActiveProcessorCount=16\b
+      
+      # Verify high-capacity engine gets overridden resources
+      - documentIndex: 1
+        equal:
+          path: metadata.name
+          value: dremio-executor-high-capacity
+      - documentIndex: 1
+        equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: "32"
+      - documentIndex: 1
+        equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 128Gi
+      - documentIndex: 1
+        equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: "32"
+      # Verify that the active processor count is set
+      - documentIndex: 1
+        matchRegex:
+          path: spec.template.spec.containers[0].env[2].value
+          pattern: -XX:ActiveProcessorCount=32\b
+
+      # Verify low-capacity engine gets overridden resources
+      - documentIndex: 2
+        equal:
+          path: metadata.name
+          value: dremio-executor-low-capacity
+      - documentIndex: 2
+        equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: "0.5"
+      - documentIndex: 2
+        equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 32Gi
+      - documentIndex: 2
+        equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: "0.5"
+      # Verify that the active processor count is set to 1
+      - documentIndex: 2
+        matchRegex:
+          path: spec.template.spec.containers[0].env[2].value
+          pattern: -XX:ActiveProcessorCount=1\b
+
+  # CloudCache tests
+  - it: should enable cloudCache by default (no explicit enabled setting)
+    template: dremio-executor.yaml
+    asserts:
+      # Should have cloudCache volume mounts
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-default-executor-c3-0
+            mountPath: /opt/dremio/cloudcache/c0
+      # Should have cloudCache volume claim templates
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-default-executor-c3-0
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 100Gi
+
+  - it: should allow disabling cloudCache per engine
+    template: dremio-executor.yaml
+    set:
+      executor:
+        engines: ["default", "no-cache"]
+        engineOverride:
+          no-cache:
+            cloudCache:
+              enabled: false
+    asserts:
+      # Should have two StatefulSets
+      - hasDocuments:
+          count: 2
+      # Default engine should have cloudCache
+      - documentIndex: 0
+        contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-default-executor-c3-0
+            mountPath: /opt/dremio/cloudcache/c0
+      # No-cache engine should not have cloudCache volume mounts
+      - documentIndex: 1
+        notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-no-cache-executor-c3-0
+            mountPath: /opt/dremio/cloudcache/c0
+
+  - it: should support engine-specific cloudCache configuration
+    template: dremio-executor.yaml
+    set:
+      executor:
+        engines: ["default", "large-cache"]
+        engineOverride:
+          large-cache:
+            cloudCache:
+              enabled: true
+              volumes:
+                - size: 500Gi
+    asserts:
+      # Should have two StatefulSets
+      - hasDocuments:
+          count: 2
+      # Default engine should have default cache size
+      - documentIndex: 0
+        contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-default-executor-c3-0
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 100Gi
+      # Large-cache engine should have larger cache size
+      - documentIndex: 1
+        contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-large-cache-executor-c3-0
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 500Gi
+
+  - it: should fail when global cloudCache is disabled
+    template: dremio-executor.yaml
+    set:
+      executor:
+        cloudCache:
+          enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "CloudCache cannot be disabled globally"
+
+  # PriorityClassName tests
+  - it: should not include priorityClassName by default
+    template: dremio-executor.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.priorityClassName
+  - it: executor.priorityClassName should set priorityClassName
+    template: dremio-executor.yaml
+    set:
+      executor:
+        priorityClassName: executor-high-priority
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: executor-high-priority
+  - it: engine-specific priorityClassName should override executor.priorityClassName
+    template: dremio-executor.yaml
+    set:
+      executor:
+        priorityClassName: executor-default-priority
+        engineOverride:
+          default:
+            priorityClassName: engine-specific-priority
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: engine-specific-priority
+  - it: should not include priorityClassName when executor.priorityClassName is empty
+    template: dremio-executor.yaml
+    set:
+      executor:
+        priorityClassName: ""
+    asserts:
+      - notExists:
+          path: spec.template.spec.priorityClassName

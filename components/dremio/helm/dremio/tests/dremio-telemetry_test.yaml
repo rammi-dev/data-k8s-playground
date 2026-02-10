@@ -1,0 +1,445 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+suite: Dremio EE Helm Chart.Telemetry Tests
+templates:
+  - dremio-telemetry-configmap.yaml
+  - dremio-telemetry.yaml
+set:
+  telemetry.enabled: true
+tests:
+  - it: should have the correct image name
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      telemetry:
+        extraEnvs:
+          - name: HTTPS_PROXY
+            value: https://127.0.0.1:443
+          - name: HTTP_PROXY
+            value: http://127.0.0.1:80
+          - name: NO_PROXY
+            value: localhost
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "quay.io/dremio/otel/opentelemetry-collector-contrib:0.133.0"
+
+  - it: should set the environment variables correctly if supplied via values
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      telemetry:
+        extraEnvs:
+          - name: HTTPS_PROXY
+            value: https://127.0.0.1:443
+          - name: HTTP_PROXY
+            value: http://127.0.0.1:80
+          - name: NO_PROXY
+            value: localhost
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GOMEMLIMIT
+            value: "1638MiB"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTPS_PROXY
+            value: https://127.0.0.1:443
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NO_PROXY
+            value: localhost
+  - it: telemetry.podAnnotations should append pod annotations
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      podAnnotations:
+        root: test
+      telemetry:
+        podAnnotations:
+          telemetry: test
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.telemetry
+          value: test
+  - it: pod annotations should apply when set at root level
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      podAnnotations:
+        root: test
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.root
+          value: test
+  - it: should not include nodeSelectors by default
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    asserts:
+      - notExists:
+          path: spec.template.spec.nodeSelector
+  - it: telemetry.nodeSelector should take priority over nodeSelector
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      telemetry:
+        nodeSelector:
+          telemetrySelector: telemetrySelector
+      nodeSelector:
+        testSelector: testSelector
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            telemetrySelector: telemetrySelector
+  - it: nodeSelector should apply when set at root level
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      nodeSelector:
+        testSelector: testSelector
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            testSelector: testSelector
+  - it: metadata.annotations should be empty by default
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    asserts:
+      - notExists:
+          path: metadata.annotations
+  - it: telemetry.annotations should set metadata.annotations
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      annotations:
+        rootAnnotation: test
+      telemetry:
+        annotations:
+          telemetryAnnotation: test
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            telemetryAnnotation: test
+  - it: telemetry.tolerations should apply tolerations
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      tolerations: [{key: "root", operator: "Equal", value: "value1", effect: "NoSchedule" }]
+      telemetry:
+        tolerations: [{key: "telemetry", operator: "Equal", value: "value1", effect: "NoSchedule" }]
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value: [{key: "telemetry", operator: "Equal", value: "value1", effect: "NoSchedule" }]
+  - it: tolerations should be applied when set at root level
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      tolerations: [{key: "root", operator: "Equal", value: "value1", effect: "NoSchedule" }]
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value: [{key: "root", operator: "Equal", value: "value1", effect: "NoSchedule" }]
+  - it: metadata.annotations should be apply when set at root level
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      annotations:
+        rootAnnotation: test
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            rootAnnotation: test
+
+  - it: telemetry.podLabels should apply podLabels
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      podLabels:
+        root: test
+      telemetry:
+        podLabels:
+          telemetry: test
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.telemetry
+          value: test
+  - it: podLabels should be applied when set at root level
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      podLabels:
+        root: test
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.root
+          value: test
+
+  # PriorityClassName tests
+  - it: should not include priorityClassName by default
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    asserts:
+      - notExists:
+          path: spec.template.spec.priorityClassName
+  - it: telemetry.priorityClassName should set priorityClassName
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      telemetry:
+        priorityClassName: high-priority
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: high-priority
+  - it: should not include priorityClassName when telemetry.priorityClassName is empty
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      telemetry:
+        priorityClassName: ""
+    asserts:
+      - notExists:
+          path: spec.template.spec.priorityClassName
+
+  # ServiceAccount tests
+  - it: should not include imagePullSecrets by default
+    template: dremio-telemetry.yaml
+    documentIndex: 0
+    asserts:
+      - notExists:
+          path: imagePullSecrets
+  - it: should include imagePullSecrets
+    template: dremio-telemetry.yaml
+    documentIndex: 0
+    set:
+      imagePullSecrets:
+        - test-0
+        - test-1
+    asserts:
+      - equal:
+          path: imagePullSecrets[0].name
+          value: test-0
+      - equal:
+          path: imagePullSecrets[1].name
+          value: test-1
+  - it: should include trial secret name in pull secrets if dremio.trialImagePullCredentials is set
+    template: dremio-telemetry.yaml
+    documentIndex: 0
+    set:
+      dremio.trialImagePullCredentials: test-credentials
+    asserts:
+      - equal:
+          path: imagePullSecrets[0].name
+          value: dremio-trial-image-pull-credentials
+  - it: should include imagePullSecrets in addition to the trial secret name in pull secrets
+    template: dremio-telemetry.yaml
+    documentIndex: 0
+    set:
+      imagePullSecrets:
+        - test-0
+        - test-1
+      dremio.trialImagePullCredentials: test-credentials
+    asserts:
+      - equal:
+          path: imagePullSecrets[0].name
+          value: test-0
+      - equal:
+          path: imagePullSecrets[1].name
+          value: test-1
+      - equal:
+          path: imagePullSecrets[2].name
+          value: dremio-trial-image-pull-credentials
+  - it: should not include ServiceAccount annotations by default
+    template: dremio-telemetry.yaml
+    documentIndex: 0
+    asserts:
+      - notExists:
+          path: metadata.annotations
+  - it: should include serviceAccountAnnotations when configured
+    template: dremio-telemetry.yaml
+    documentIndex: 0
+    set:
+      telemetry:
+        serviceAccountAnnotations:
+          eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/my-role"
+          example.com/custom-annotation: "custom-value"
+    asserts:
+      - equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: "arn:aws:iam::123456789012:role/my-role"
+      - equal:
+          path: metadata.annotations["example.com/custom-annotation"]
+          value: "custom-value"
+  - it: should have correct ServiceAccount metadata
+    template: dremio-telemetry.yaml
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.name
+          value: telemetry-collector
+      - equal:
+          path: metadata.labels.app
+          value: telemetry-collector
+
+  # podSecurityContext Tests
+  - it: should have default podSecurityContext for telemetry
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            fsGroup: 999
+            fsGroupChangePolicy: OnRootMismatch
+  - it: should override podSecurityContext for telemetry
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      telemetry:
+        podSecurityContext:
+          fsGroup: 999
+          fsGroupChangePolicy: OnRootMismatch
+          runAsUser: 1001
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            fsGroup: 999
+            fsGroupChangePolicy: OnRootMismatch
+            runAsUser: 1001
+  - it: should use root podSecurityContext for telemetry when telemetry's is null
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      telemetry:
+        podSecurityContext: null
+      podSecurityContext:
+        runAsUser: 1002
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            fsGroup: 999
+            fsGroupChangePolicy: OnRootMismatch
+            runAsUser: 1002
+  - it: should have default podSecurityContext for telemetry when both are not set
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      telemetry:
+        podSecurityContext: null
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            fsGroup: 999
+            fsGroupChangePolicy: OnRootMismatch
+
+  # containerSecurityContext Tests
+  - it: should have default containerSecurityContext for telemetry
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsGroup: 999
+            runAsNonRoot: true
+            runAsUser: 999
+            seccompProfile:
+              type: RuntimeDefault
+  - it: should override containerSecurityContext for telemetry
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      telemetry:
+        containerSecurityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          privileged: false
+          readOnlyRootFilesystem: false
+          runAsGroup: 999
+          runAsNonRoot: true
+          runAsUser: 2001
+          seccompProfile:
+            type: RuntimeDefault
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsGroup: 999
+            runAsNonRoot: true
+            runAsUser: 2001
+            seccompProfile:
+              type: RuntimeDefault
+  - it: should use root containerSecurityContext for telemetry when telemetry's is null
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      telemetry:
+        containerSecurityContext: null
+      containerSecurityContext:
+        runAsUser: 2002
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsGroup: 999
+            runAsNonRoot: true
+            runAsUser: 2002
+            seccompProfile:
+              type: RuntimeDefault
+  - it: should have default containerSecurityContext for telemetry when both are null
+    template: dremio-telemetry.yaml
+    documentIndex: 3
+    set:
+      telemetry:
+        containerSecurityContext: null
+      containerSecurityContext: null
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsGroup: 999
+            runAsNonRoot: true
+            runAsUser: 999
+            seccompProfile:
+              type: RuntimeDefault

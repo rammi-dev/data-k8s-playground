@@ -1,0 +1,128 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dremio-config
+data:
+  {{- /* Get config files as dict */ -}}
+  {{- $temp := dict -}}
+  {{- range $key, $val := (.Files.Glob "config/*").AsConfig | fromYaml }}
+    {{- /* trap the return value https://helm.sh/docs/chart_template_guide/function_list/#set */ -}}
+    {{- $_ := set $temp $key (tpl $val $) }}
+  {{- end }}
+  {{- $configFiles := $temp }}
+  {{- range $key, $val := .Values.dremio.configFiles }}
+    {{- if eq $key "dremio.conf" }}
+      {{- fail "dremio.conf is not overridable, use dremio.dremioConfExtraOptions to add new options" }}
+    {{- end }}
+  {{- end }}
+  {{- /* Merge dremio.configFiles values, which override the files from "config/*" */ -}}
+  {{- $mergedConfig := mergeOverwrite $configFiles $.Values.dremio.configFiles }}
+
+  {{- /* Add sso.json if coordinator.web.auth.ssoFile is defined */ -}}
+  {{- if (((($.Values.coordinator).web).auth).ssoFile) }}
+    {{- /* trap the return value https://helm.sh/docs/chart_template_guide/function_list/#set */ -}}
+    {{- $_ := set $mergedConfig "sso.json" (((($.Values.coordinator).web).auth).ssoFile) }}
+  {{- end }}
+
+  {{- /* Output merged config, checking for conflicts with configBinaries */ -}}
+  {{- range $key, $val := $mergedConfig }}
+    {{- if hasKey $.Values.dremio.configBinaries $key }}
+      {{- fail (printf "Conflict detected for key %s between config files and dremio.configBinaries, you can have only one" $key) }}
+    {{- else }}
+  {{ $key }}: |
+{{ $val | indent 4 }}
+    {{- end }}
+  {{- end }}
+{{- /* Add binary config files (user provides base64-encoded content) */ -}}
+{{- $configBinaries := $.Values.dremio.configBinaries | default dict -}}
+
+{{- /* Add truststore from advancedConfigs if enabled */ -}}
+{{- if (($.Values.dremio.advancedConfigs).trustStore).enabled }}
+  {{- $trustStoreData := (($.Values.dremio.advancedConfigs).trustStore).binaryData -}}
+  {{- if hasKey $configBinaries "truststore.jks" }}
+    {{- fail "Conflict detected: truststore.jks already exists in dremio.configBinaries" }}
+  {{- end }}
+  {{- /* Add truststore to configBinaries */ -}}
+  {{- $_ := set $configBinaries "truststore.jks" $trustStoreData }}
+{{- end }}
+
+{{- /* Output binary config files in binaryData section */ -}}
+{{- if $configBinaries }}
+binaryData:
+  {{- range $key, $val := $configBinaries }}
+    {{- if eq $key "sso.json" }}
+      {{- fail "sso.json found in dremio.configBinaries. This will conflict with coordinator.web.auth.ssoFile setting." }}
+    {{- end }}
+  {{ $key }}: {{ $val }}
+  {{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dremio-hive2-config
+data:
+  {{- /* Get hive2 config files and merge with hive2ConfigFiles values */ -}}
+  {{- $mergedConfig := mergeOverwrite ((.Files.Glob "config/hive2/*").AsConfig | fromYaml) $.Values.dremio.hive2ConfigFiles }}
+  {{- range $key, $val := $mergedConfig }}
+  {{ $key }}: |
+{{ $val | indent 4 }}
+  {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dremio-hive3-config
+data:
+  {{- /* Get hive3 config files and merge with hive3ConfigFiles values */ -}}
+  {{- $mergedConfig := mergeOverwrite ((.Files.Glob "config/hive3/*").AsConfig | fromYaml) $.Values.dremio.hive3ConfigFiles }}
+  {{- range $key, $val := $mergedConfig }}
+  {{ $key }}: |
+{{ $val | indent 4 }}
+  {{- end }}
+---
+{{- $originalValues := mustDeepCopy $.Values -}}
+{{- range $engine := keys (default (dict) $.Values.executor.engineOverride) -}}
+{{- if has $engine $.Values.executor.engines -}}
+{{- $_ := mustMergeOverwrite $.Values $originalValues -}}
+{{- $engineAwareConfig := mustDeepCopy $.Values -}}
+{{- $_ := set $engineAwareConfig "currentEngine" $engine }}
+{{- $_ := mustMergeOverwrite $engineAwareConfig.executor (get $.Values.executor.engineOverride $engine) -}}
+{{- $_ := mustMergeOverwrite $.Values $engineAwareConfig -}}
+{{- $temp := dict -}}
+{{- range $key, $val := ($.Files.Glob "config/*").AsConfig | fromYaml }}
+{{- $_ := set $temp $key (tpl $val $) }}
+{{- end }}
+{{- $mergedConfig := $temp }}
+{{- $_ := mergeOverwrite $mergedConfig (($.Values.dremio).configFiles) }}
+{{- /* Prepare binary configs (including truststore if enabled) */ -}}
+{{- $engineConfigBinaries := $.Values.dremio.configBinaries | default dict -}}
+{{- if (($.Values.dremio.advancedConfigs).trustStore).enabled }}
+  {{- $trustStoreData := (($.Values.dremio.advancedConfigs).trustStore).binaryData -}}
+  {{- $_ := set $engineConfigBinaries "truststore.jks" $trustStoreData }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dremio-config-{{ $engine }}
+data:
+  {{- range $key, $val := $mergedConfig }}
+  {{ $key }}: |
+{{ $val | indent 4 }}
+  {{- end }}
+{{- if $engineConfigBinaries }}
+binaryData:
+  {{- range $key, $val := $engineConfigBinaries }}
+  {{ $key }}: {{ $val }}
+  {{- end }}
+{{- end }}
+---
+{{- $_ := mustMergeOverwrite $.Values $originalValues -}}
+{{- end -}}
+{{- end -}}
+
+

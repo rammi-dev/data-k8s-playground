@@ -1,0 +1,168 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+{{- if and .Values.ddc .Values.ddc.allowCollectOnAllPods }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ddc-collect-all-pods
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - pods/log
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - pods/exec
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ddc-collect-all-pods
+subjects:
+- kind: ServiceAccount
+  name:  {{ .Values.coordinator.serviceAccount}}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: ddc-collect-all-pods
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+
+{{- if and .Values.ddc .Values.ddc.namespaceDiagnostics }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ddc-collect-namespace-diagnostics
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  - persistentvolumeclaims
+  - persistentvolumes
+  - limitranges
+  - resourcequotas
+  - services
+  - endpoints
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  - jobs
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - statefulsets
+  - daemonsets
+  - replicasets
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - autoscaling
+  resources:
+  - horizontalpodautoscalers
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - get
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ddc-collect-namespace-diagnostics
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.coordinator.serviceAccount}}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: ddc-collect-namespace-diagnostics
+  apiGroup: rbac.authorization.k8s.io
+
+{{- end }}
+
+{{- if and .Values.ddc .Values.ddc.k8sClusterDiagnostic }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ddc-collect-k8s-cluster-diagnostics
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  - persistentvolumes
+  - services
+  - endpoints
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - scheduling.k8s.io
+  resources:
+  - priorityclasses
+  verbs:
+  - get
+  - list
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ddc-collect-k8s-cluster-diagnostics
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ddc-collect-k8s-cluster-diagnostics
+subjects:
+- kind: ServiceAccount
+  name:  {{ .Values.coordinator.serviceAccount}}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

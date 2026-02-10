@@ -1,0 +1,359 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+# A Dremio License is required
+dremio:
+  license: ""
+  image:
+    repository: quay.io/dremio/dremio-enterprise
+  log:
+    volume:
+      size: 10Gi
+
+  # Configuration file customization
+  # The configFiles and configBinaries options provide the ability to override or add configuration files
+  # included in the Dremio ConfigMap. Both use a map where keys correspond to the filenames 
+  # and values are the file contents.
+  # configFiles: Use this to provide text-based configuration files that will be mounted in /opt/dremio/conf/
+  # Note: The dremio.conf file is controlled by multiple settings in this values file and
+  # should not be directly overridden here.
+  # Example:
+  #configFiles:
+  #  logback.xml: |
+  #    <?xml version="1.0" encoding="UTF-8" ?>
+  #    <configuration>
+  #      <!-- custom logback.xml content -->
+  #    </configuration>
+
+  # configBinaries: Use this to provide binary configuration files (must be base64-encoded)
+  # These files will be mounted in /opt/dremio/conf/
+  # Note: The template expects base64-encoded content. Kubernetes will automatically decode
+  # the base64 content when mounting the ConfigMap.
+  # Example:
+  #configBinaries:
+  #  custom-binary.conf: "base64EncodedBinaryContent"
+
+  # advancedConfigs: Advanced configuration options for Dremio
+  #advancedConfigs:
+  #  # TrustStore configuration for Java SSL/TLS trust management
+  #  trustStore:
+  #    enabled: false
+  #    password: "changeit"
+  #    # Base64-encoded truststore file (JKS, PKCS12, etc.)
+  #    # To encode: cat truststore.jks | base64
+  #    binaryData: "/u3+7QAAAAIAAAABAAAAAQAKbXlrZXlzdG9yZQ..."
+
+  # dremioConfExtraOptions: Use this to add settings in dremio.conf
+  # Example:
+  #dremioConfExtraOptions:
+  #  # Enable SSL for fabric services
+  #  "services.fabric.ssl.enabled": true
+  #  "services.fabric.ssl.auto-certificate.enabled": false
+
+  # Hive 2 configuration files - override or add configuration files for Hive 2
+  #hive2ConfigFiles:
+  #  hive-site.xml: |
+  #    <?xml version="1.0" encoding="UTF-8"?>
+  #    <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+  #    <configuration>
+  #      <property>
+  #        <n>hive.metastore.uris</n>
+  #        <value>thrift://hive-metastore:9083</value>
+  #      </property>
+  #    </configuration>
+  # Hive 3 configuration files - override or add configuration files for Hive 3
+  #
+  #hive3ConfigFiles:
+  #  hive-site.xml: |
+  #    <?xml version="1.0" encoding="UTF-8"?>
+  #    <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+  #    <configuration>
+  #      <property>
+  #        <n>hive.metastore.uris</n>
+  #        <value>thrift://hive3-metastore:9083</value>
+  #      </property>
+  #    </configuration>
+
+
+# For private and protected docker image repository, you should store
+# the credentials in a kubernetes secret and provide the secret name
+# here.  For more information, see
+# https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod
+# imagePullSecrets:
+#  - example-1
+#  - example-2
+
+# Dremio Coordinator
+coordinator:
+  web:
+    auth:
+      enabled: true
+      type: "internal" # Valid types are: internal, ldap, azuread, oauth, oauth+ldap
+      # if enabled is true and type ldap, azuread, oauth, or oauth+ldap 
+      # then it must be used with --set-file coordinator.web.auth.ssoFile=/path/to/file for the SSO provider configuration file
+      # OR uncomment the entry below and provide the JSON configuration inline
+      # for more information about the file format for your SSO provider
+      # see https://docs.dremio.com/current/get-started/cluster-deployments/customizing-configuration/dremio-conf/sso-config/ 
+      # ssoFile: |
+      # {
+      #   "oAuthConfig": {
+      #     "clientId": "MY_CLIENT_ID",
+      #     "clientSecret": "MY_SECRET",
+      #     "redirectUrl": "https://myhost:9047/sso",
+      #     "authorityUrl": "https://login.microsoftonline.com/MY_TENANT_ID_HERE/v2.0",
+      #     "scope": "openid profile",
+      #     "jwtClaims": {
+      #       "userName": "preferred_username"
+      #     }
+      #   }
+      # }
+  resources:
+    requests:
+      cpu: "32"
+      memory: "64Gi"
+    limits:
+      cpu: "32"
+      memory: "64Gi"
+
+# Control where uploaded files are stored for Dremio.
+# For more information, see https://docs.dremio.com/current/get-started/cluster-deployments/architecture/distributed-storage/
+distStorage:
+  # The supported distributed storage types are: aws, gcp, or azureStorage.
+  # aws: AWS S3, additional parameters required, see "aws" section.
+  # azureStorage: Azure Storage Gen2, additional parameters required, see "azureStorage" section.
+  # gcp: Google Cloud Storage, additional parameters required, see "gcp" section.
+  type: "Distributed Storage Type"
+
+  # Google Cloud Storage
+  #
+  # bucketName: The name of the GCS bucket for distributed storage.
+  # path: The path, relative to the bucket, to create Dremio's directories.
+  # authentication: Valid types are: serviceAccountKeys or auto.
+  #   - When using "auto" authentication, Dremio uses Google Application Default Credentials to
+  #     authenticate. This is platform dependent and may not be available in all Kubernetes clusters.
+  #   - Note: When using a GCS bucket on GKE, we recommend enabling Workload Identity and configuring
+  #       a Kubernetes Service Accountfor Dremio with an associated workload identity that
+  #       has access to the GCS bucket.
+  # credentials: If using serviceAccountKeys authentication, uncomment the credentials section below.
+  gcp:
+    bucketName: "GCS Bucket Name"
+    path: "/"
+    authentication: "auto"
+
+    # If using serviceAccountKeys, uncomment the section below, referencing the values from
+    # the service account credentials JSON file that you generated:
+    #
+    #credentials:
+    #  projectId: GCP Project ID that the Google Cloud Storage bucket belongs to.
+    #  clientId: Client ID for the service account that has access to Google Cloud Storage bucket.
+    #  clientEmail: Email for the service account that has access to Google Cloud Storage bucket.
+    #  privateKeyId: Private key ID for the service account that has access to Google Cloud Storage bucket.
+    #  privateKey: |-
+    #    -----BEGIN PRIVATE KEY-----\n Replace me with full private key value. \n-----END PRIVATE KEY-----\n
+
+    # Extra Properties
+    # Use the extra properties block to provide additional parameters to configure the distributed
+    # storage in the generated core-site.xml file.
+    #
+    #extraProperties: |
+    #  <property>
+    #    <name></name>
+    #    <value></value>
+    #  </property>
+
+  # AWS S3
+  # For more details of S3 configuration, see https://docs.dremio.com/current/deploy-dremio/configuring-kubernetes/#configuring-the-distributed-storage
+  #
+  # bucketName: The name of the S3 bucket for distributed storage.
+  # path: The path, relative to the bucket, to create Dremio's directories.
+  # authentication: Valid types are: accessKeySecret, metadata, awsProfile, or podIdentity.
+  #   - Note: Instance metadata is only supported in AWS EKS and requires that the
+  #       EKS worker node IAM role is configured with sufficient access rights. At this time,
+  #       Dremio does not support using an K8s service account based IAM role.
+  #   - Note: Pod Identity is only supported in AWS EKS and requires that the
+  #       Kubernetes service account is associated with an IAM role via EKS Pod Identity.
+  #       This is required for EKS Auto Mode environments where IMDSv2 is blocked.
+  # credentials: If using accessKeySecret authentication, uncomment the credentials section below.
+  aws:
+    bucketName: "AWS Bucket Name"
+    path: "/"
+    # region: The AWS region for the S3 bucket. Required for MongoDB backups.
+    region: "AWS Region"
+    # The S3 endpoint to use. Required for MongoDB backups when using an S3-compatible storage solution.
+    # (You must also specify the endpoint in the extraProperties section below.)
+    #endpoint: "https://example.com"
+    # Enable or disable verification of the storage server TLS certificate. Disabling it may be
+    # useful e.g. to skip TLS verification for S3-compatible storages with a self-issued certificate.
+    # (You must also specify this in the extraProperties section below.)
+    #tls: true
+    authentication: "metadata"
+    # If using accessKeySecret for authentication against S3, uncomment the lines below and use the values
+    # to configure the appropriate credentials.
+    #
+    #credentials:
+    #  accessKey: "AWS Access Key"
+    #  secret: "AWS Secret"
+    #
+    # If using awsProfile for authentication against S3, uncomment the lines below and use the values
+    # to choose the appropriate profile.
+    #
+    #credentials:
+    #  awsProfileName: "default"
+    #
+    # If using podIdentity for authentication against S3, set authentication to "podIdentity".
+    # No additional credentials are required as the IAM role is associated with the Kubernetes service account.
+    #
+    # Extra Properties
+    # Use the extra properties block to provide additional parameters to configure the distributed
+    # storage in the generated core-site.xml file.
+    #
+    #extraProperties: |
+    #  <property>
+    #    <name></name>
+    #    <value></value>
+    #  </property>
+
+  # Azure Storage Gen2
+  # For more details of Azure Storage Gen2 storage configuration, see
+  # https://docs.dremio.com/current/deploy-dremio/configuring-kubernetes/#configuring-the-distributed-storage
+  #
+  # accountName: The name of the storage account.
+  # authentication: Valid types are: accessKey or entraID
+  # filesystem: The name of the blob container to use within the storage account.
+  # path: The path, relative to the filesystem, to create Dremio's directories.
+  # credentials:
+  azureStorage:
+    accountName: "Azure Storage Account Name"
+    authentication: "accessKey"
+    filesystem: "Azure Storage Account Blob Container"
+    path: "/"
+    #credentials:
+    # If using accessKey for authentication against Azure Storage, uncomment the lines below and use the values
+    # to configure the appropriate credentials.
+    #accessKey: "Azure Storage Account Access Key"
+
+    # If using entraID for authentication against Azure Storage, uncomment the lines below and use the values
+    # to configure the appropriate credentials.
+    #clientId: "Azure Application Client ID"
+    #tokenEndpoint: "Azure Entra ID Token Endpoint"
+    #clientSecret: "Azure Application Client Secret"
+
+    # Extra Properties
+    # Use the extra properties block to provide additional parameters to configure the distributed
+    # storage in the generated core-site.xml file.
+    #
+    #extraProperties: |
+    #  <property>
+    #    <name></name>
+    #    <value></value>
+    #  </property>
+
+# Dremio Catalog
+catalog:
+  storage:
+#    s3:
+#      For EKS with Pod Identity (required for EKS Auto Mode environments where IMDSv2 is blocked):
+#        - Set `userArn` to the IAM role assumed by the catalog pod.
+#        - Set `roleArn` to the IAM role that grants S3 access for the catalog.
+#        - Ensure the catalog pod’s Kubernetes ServiceAccount (dremio-catalog-server, by default) is associated with `userArn` via EKS Pod Identity.
+#        - `userArn` must have sts:AssumeRole permission for `roleArn`.
+#        - `roleArn` must include S3 permissions for the catalog bucket/prefix (and KMS if applicable),
+#          and trust `userArn`.
+#      If not set the default name "catalog-server-s3-storage-creds" will be used.
+#      secretName: "Optional name of the secret containing the AWS credentials"
+#    azure:
+#      If not set the default name "catalog-server-azure-storage-creds" will be used.
+#      secretName: "Optional name of the secret containing the Azure credentials"
+#    gcs:
+#      If not set the default name "catalog-server-gcs-storage-creds" will be used.
+#      secretName: "Optional name of the secret containing the GCP credentials"
+
+# Engines
+engine:
+  executor:
+    volumes:
+    # Example configurations:
+    #
+    # 1. Use PVC with specific storage classes:
+    #   default:
+    #     type: "pvc"
+    #     pvc:
+    #       storageClass: "fast-ssd"
+    #   c3:
+    #     type: "pvc"
+    #     pvc:
+    #       storageClass: "fast-nvme"
+    #   log:
+    #     size: 100Gi
+    #     pvc:
+    #       storageClass: "fast-nvme"
+    #
+    # 2. Use hostPath volumes:
+    # volumes:
+    #   default:
+    #     type: "hostPath"
+    #     hostPath:
+    #       path: "/mnt/dremio-data"
+    #       type: "DirectoryOrCreate"
+    #   c3:
+    #     type: "hostPath"
+    #     hostPath:
+    #       path: "/mnt/dremio-cache"
+    #       type: "DirectoryOrCreate"
+    #
+    # 3. Use emptyDir volumes:
+    # volumes:
+    #   default:
+    #     type: "emptyDir"
+    #     emptyDir:
+    #       sizeLimit: "10Gi"
+    #   c3:
+    #     type: "emptyDir"
+    #     emptyDir:
+    #       sizeLimit: "50Gi"
+    #       medium: "Memory"
+    #
+    # 4. Mixed configuration:
+    # volumes:
+    #   default:
+    #     type: "pvc"
+    #     pvc:
+    #       storageClass: "standard"
+    #   c3:
+    #     type: "emptyDir"
+    #     emptyDir:
+    #       sizeLimit: "50Gi"
+
+    # Extra init containers for engine executors
+    #
+    # These containers run before the main executor container starts
+    # Example configurations:
+    # extraInitContainers:
+    #   - name: setup-permissions
+    #     image: busybox:1.37.0
+    #     command: ["sh", "-c"]
+    #     args:
+    #       - |
+    #         echo "Setting up permissions for executor..."
+    #         chmod 755 /opt/dremio/data
+    #     volumeMounts:
+    #       - name: dremio-executor-volume
+    #         mountPath: /opt/dremio/data
+    #   - name: download-config
+    #     image: curlimages/curl:8.1.0
+    #     command: ["sh", "-c"]
+    #     args:
+    #       - |
+    #         echo "Downloading additional configuration..."
+    #         curl -o /tmp/config.json https://example.com/config.json
+    #     volumeMounts:
+    #       - name: config-volume
+    #         mountPath: /tmp
+
+# MongoDB
+mongodb:
+  backup:
+    # Set this to false if you want to manage MongoDB backups manually,
+    # or if automated backups are not compatible with your distStorage settings.
+    enabled: true

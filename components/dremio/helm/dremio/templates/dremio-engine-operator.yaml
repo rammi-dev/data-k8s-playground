@@ -1,0 +1,418 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: engine-operator
+  name: {{ .Values.engine.operator.serviceAccount }}
+  {{- with .Values.engine.operator.serviceAccountAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- include "dremio.imagePullSecrets" $ }}
+---
+apiVersion: "apps/v1"
+kind: "Deployment"
+metadata:
+  name: engine-operator
+  {{- include "dremio.engine.operator.annotations" $ | nindent 2 }}
+  {{- include "dremio.engine.operator.labels" $ | nindent 2 }}
+spec:
+  replicas: {{ ((.Values.engine).operator).count | default "1" }}
+  selector:
+    matchLabels:
+      app: engine-operator
+  template:
+    metadata:
+      labels:
+        app: engine-operator
+        role: engine-operator-role
+        diagnostics-collector-role: engine-operator
+        {{- include "dremio.engine.operator.podLabels" $ | nindent 8 }}
+      annotations:
+        metrics.dremio.com/scrape: "true"
+        metrics.dremio.com/port: "8080"
+        metrics.dremio.com/path: "/q/metrics"
+        {{- include "dremio.engine.operator.podAnnotations" $ | nindent 8 }}
+    spec:
+      {{- include "dremio.engine.operator.serviceAccount" $ | nindent 6 }}
+      {{- include "dremio.engine.operator.priorityClassName" $ | nindent 6 }}
+      {{- include "dremio.engine.operator.nodeSelector" $ | nindent 6 }}
+      {{- include "dremio.engine.operator.tolerations" $ | nindent 6 }}
+      {{- include "dremio.engine.operator.podSecurityContext" $ | nindent 6 }}
+      containers:
+      - name: engine-operator
+        {{- include "dremio.engine.operator.containerSecurityContext" $ | nindent 8 }}
+        image: {{ $.Values.engine.operator.image.repository }}:{{ $.Values.engine.operator.image.tag }}
+        imagePullPolicy: {{ $.Values.engine.operator.image.pullPolicy }}
+        resources:
+          requests:
+            cpu: {{ ((.Values.engine).operator).cpu | default "0.5"}}
+            memory: {{ ((.Values.engine).operator).memory | default "1024Mi" }}
+          limits:
+            cpu: {{ ((.Values.engine).operator).cpu | default "0.5"}}
+            memory: {{ ((.Values.engine).operator).memory | default "1024Mi" }}
+        env:
+        - name: "EXECUTOR_IMAGE"
+          value: {{ $.Values.dremio.image.repository }}:{{ $.Values.dremio.image.tag }}
+        - name: "KUBERNETES_NAMESPACE"
+          value: {{ .Release.Namespace }}
+        - name: "QUARKUS_OPERATOR_SDK_CONTROLLERS_ENGINE_NAMESPACES"
+          value: JOSDK_WATCH_CURRENT
+        - name: "QUARKUS_MONGODB_DATABASE"
+          value: "{{ include "dremio.mongodb.db" $ }}"
+        - name: "QUARKUS_MONGODB_CONNECTION_STRING"
+          value: "{{ include "dremio.mongodb.connectionString" $ }}"
+        - name: "QUARKUS_MONGODB_CREDENTIALS_USERNAME"
+          value: "{{ include "dremio.mongodb.user" $ }}"
+        - name: "QUARKUS_MONGODB_CREDENTIALS_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: "{{ include "dremio.mongodb.userSecret" $ }}"
+              key: "{{ include "dremio.mongodb.user" $ }}"
+        - name: LOG_PVC_VOLUME_NAME
+          value: {{ .Values.engine.executor.volumes.log.pvc.name }}
+        - name: LOG_PVC_DELETE_GRACE_PERIOD
+          value: {{ .Values.engine.executor.volumes.log.pvc.deleteGracePeriod }}
+        {{- include "dremio.engine.operator.extraEnvs" $ | nindent 8 }}
+        ports:
+        - containerPort: 8080
+          name: "http"
+          protocol: "TCP"
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: "/q/health/live"
+            port: 8080
+            scheme: "HTTP"
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 10
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: "/q/health/ready"
+            port: 8080
+            scheme: "HTTP"
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 10
+        startupProbe:
+          failureThreshold: 3
+          httpGet:
+            path: "/q/health/started"
+            port: 8080
+            scheme: "HTTP"
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 10
+---
+apiVersion: "rbac.authorization.k8s.io/v1"
+kind: "Role"
+metadata:
+  name: "engine-operator-role"
+rules:
+  - apiGroups:
+      - "private.dremio.com"
+    resources:
+      - "engines"
+      - "engines/status"
+      - "engines/finalizers"
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+      - "patch"
+      - "update"
+      - "create"
+      - "delete"
+  - apiGroups:
+      - ""
+    resources:
+      - "configmaps"
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+      - "patch"
+      - "update"
+      - "delete"
+      - "create"
+  - apiGroups:
+      - "apps"
+    resources:
+      - "statefulsets"
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+      - "patch"
+      - "update"
+      - "delete"
+      - "create"
+  - apiGroups:
+      - ""
+    resources:
+      - "persistentvolumeclaims"
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+      - "patch"
+      - "delete"
+      - "deletecollection"
+  - apiGroups:
+      - ""
+    resources:
+      - "pods"
+      - "events"
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+---
+apiVersion: "rbac.authorization.k8s.io/v1"
+kind: "RoleBinding"
+metadata:
+  name: "engine-operator-role-binding"
+  labels:
+    app: "engine-operator"
+roleRef:
+  kind: "Role"
+  apiGroup: "rbac.authorization.k8s.io"
+  name: "engine-operator-role"
+subjects:
+  - kind: "ServiceAccount"
+    namespace: {{ .Release.Namespace }}
+    name: {{ .Values.engine.operator.serviceAccount }}
+---
+apiVersion: "rbac.authorization.k8s.io/v1"
+kind: "Role"
+metadata:
+  name: "engine-coordinator-role"
+rules:
+  - apiGroups:
+      - "private.dremio.com"
+    resources:
+      - "engines"
+      - "engines/status"
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+  - apiGroups:
+      - "private.dremio.com"
+    resources:
+      - "engines"
+    verbs:
+      - "patch"
+      - "update"
+      - "delete"
+      - "create"
+---
+apiVersion: "rbac.authorization.k8s.io/v1"
+kind: "RoleBinding"
+metadata:
+  name: "engine-coordinator-role-binding"
+  labels:
+    app: "dremio-coordinator"
+roleRef:
+  kind: "Role"
+  apiGroup: "rbac.authorization.k8s.io"
+  name: "engine-coordinator-role"
+subjects:
+  - kind: "ServiceAccount"
+    namespace: {{ .Release.Namespace }}
+    name: {{ .Values.coordinator.serviceAccount }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: engine-executor
+  name: {{ .Values.engine.executor.serviceAccount }}
+  {{- with .Values.engine.executor.serviceAccountAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- include "dremio.imagePullSecrets" $ }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: executor-statefulset-template
+data:
+  executor-statefulset-template.yaml: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      name: template-dremio-executor
+    spec:
+      serviceName: "dremio-cluster-pod"
+      replicas: 0
+      podManagementPolicy: "Parallel"
+      revisionHistoryLimit: 1
+      selector:
+        matchLabels:
+          app: dremio-executor
+      template:
+        metadata:
+          labels:
+            role: dremio-cluster-pod
+            diagnostics-collector-role: dremio-executor
+          annotations:
+            metrics.dremio.com/scrape: "true"
+            metrics.dremio.com/port: "9010"
+            metrics.dremio.com/path: "/metrics"
+        spec:
+          {{- if $.Values.engine.executor.priorityClassName }}
+          priorityClassName: {{ $.Values.engine.executor.priorityClassName }}
+          {{- end }}
+          terminationGracePeriodSeconds: 10
+          serviceAccountName: {{ .Values.engine.executor.serviceAccount }}
+          {{- include "dremio.podSecurityContext" $ | nindent 10 }}
+          containers:
+            - name: dremio-executor
+              {{- include "dremio.containerSecurityContext" $ | nindent 14 }}
+              image: {{ $.Values.dremio.image.repository }}:{{ $.Values.dremio.image.tag }}
+              imagePullPolicy: {{ $.Values.dremio.image.pullPolicy }}
+              resources:
+                requests:
+                  cpu: 0
+                  memory: "0Gi"
+                limits:
+                  cpu: 0
+                  memory: "0Gi"
+              volumeMounts:
+                {{- if $.Values.engine.extraVolumeMounts }}
+                {{- $.Values.engine.extraVolumeMounts | toYaml | nindent 16 }}
+                {{- end }}
+                - name: {{ .Values.engine.executor.volumes.log.pvc.name }}
+                  mountPath: /opt/dremio/data/log
+                - name: dremio-config
+                  mountPath: /opt/dremio/conf
+                - name: dremio-engine-config
+                  mountPath: /opt/dremio/conf/engine
+                - name: dremio-hive2-config
+                  mountPath: /opt/dremio/plugins/connectors/hive2.d
+                - name: dremio-hive2-config
+                  mountPath: /opt/dremio/plugins/connectors/hive2-ee.d
+                - name: dremio-hive3-config
+                  mountPath: /opt/dremio/plugins/connectors/hive3.d
+                - name: dremio-hive3-config
+                  mountPath: /opt/dremio/plugins/connectors/hive3-ee.d
+                - name: dremio-default-executor-volume
+                  mountPath: /opt/dremio/data
+                - name: dremio-license
+                  mountPath: /opt/dremio/license
+                - name: dremio-default-executor-c3-0
+                  mountPath: /opt/dremio/cloudcache/c0
+              env:
+                - name: DREMIO_MAX_MEMORY_SIZE_MB
+                  value: "0"
+                - name: DREMIO_JAVA_SERVER_EXTRA_OPTS
+                  value: >-
+                    -XX:+UseG1GC
+                    -XX:+AlwaysPreTouch
+                    -XX:HeapDumpPath=/opt/dremio/data
+                    -XX:ErrorFile=/opt/dremio/data/hs_err_pid%p.log
+                    -XX:MaxGCPauseMillis=500
+                    -XX:InitiatingHeapOccupancyPercent=25
+                    -Xlog:gc*,classhisto*=trace:file=/opt/dremio/data/log/gc.log:uptime,time,tags,level:filecount=1,filesize=4M
+                    -Dzookeeper=zk-hs:2181
+                    -Dservices.coordinator.enabled=false
+                    -Dservices.coordinator.master.enabled=false
+                    -Dservices.coordinator.master.embedded-zookeeper.enabled=false
+                    -Dservices.executor.enabled=true
+                    -Dservices.conduit.port=45679
+                    {{- include "dremio.catalog.java.options" $ | nindent 20 }}
+                    {{- include "dremio.catalogservices.java.options" $ | nindent 20 }}
+                - name: DREMIO_LOG_TO_CONSOLE
+                  value: "0"
+                - name: DREMIO_LOG_DIR
+                  value: "/opt/dremio/data/log"
+                - name: DREMIO_HELM_VERSION
+                  value: "{{ .Chart.Version }}"
+                {{- include "dremio.executor.extraEnvs" (list $ "") | nindent 16 }}
+              command: [ "/opt/dremio/bin/dremio" ]
+              args: [ "start-fg" ]
+              ports:
+                - containerPort: 45678
+                  name: server-fabric
+                - containerPort: 45679
+                  name: server-conduit
+                - containerPort: 9010
+                  name: metrics
+              startupProbe:
+                httpGet:
+                  path: /live
+                  port: 9010
+                initialDelaySeconds: {{ $.Values.engine.executor.probes.startup.initialDelaySeconds }}
+                failureThreshold: {{ $.Values.engine.executor.probes.startup.failureThreshold }}
+                periodSeconds: {{ $.Values.engine.executor.probes.startup.periodSeconds }}
+              livenessProbe:
+                httpGet:
+                  path: /live
+                  port: 9010
+                failureThreshold: {{ $.Values.engine.executor.probes.liveness.failureThreshold }}
+                periodSeconds: {{ $.Values.engine.executor.probes.liveness.periodSeconds }}
+          initContainers:
+          {{- include "dremio.engine.executor.extraInitContainers" $ | nindent 10 }}
+          - name: wait-for-zookeeper
+            {{- include "dremio.containerSecurityContext" $ | nindent 12 }}
+            image: {{ $.Values.busyBox.image.repository }}:{{ $.Values.busyBox.image.tag }}
+            imagePullPolicy: {{ $.Values.busyBox.image.pullPolicy }}
+            command: [ "sh", "-c", "until nc zk-hs 2181 -w1 > /dev/null; do echo Waiting for Zookeeper to be ready.; sleep 2; done;" ]
+            resources:
+              {{- $.Values.initResources | toYaml | nindent 14 }}
+          volumes:
+            {{- include "dremio.defaultVolume" . | nindent 12 }}
+            {{- include "dremio.c3Volume" . | nindent 12 }}
+            {{- if $.Values.engine.extraVolumes }}
+            {{- $.Values.engine.extraVolumes | toYaml | nindent 12 }}
+            {{- end }}
+            - name: dremio-config
+              configMap:
+                name: dremio-config
+            - name: dremio-engine-config
+              configMap:
+                name: engine-options
+            - name: dremio-hive2-config
+              configMap:
+                name: dremio-hive2-config
+            - name: dremio-hive3-config
+              configMap:
+                name: dremio-hive3-config
+            - name: dremio-license
+              secret:
+                secretName: dremio-license
+                items:
+                  - key: license
+                    path: key
+      volumeClaimTemplates:
+        {{- include "dremio.defaultVolumeClaimTemplate" . | nindent 8 }}
+        {{- include "dremio.c3VolumeClaimTemplate" . | nindent 8 }}
+        - metadata:
+            name: {{ .Values.engine.executor.volumes.log.pvc.name }}
+          spec:
+            accessModes: [ "ReadWriteOnce" ]
+            {{- include "dremio.engine.operator.log.storageClass" . | nindent 12 }}
+            resources:
+              requests:
+                storage: {{ ((((.Values.engine).executor).volumes).log).size | default "10Gi" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: engine-options
+data:
+  engine-options.yaml: |
+    engineOptions:
+      {{- toYaml $.Values.engine.options | nindent 6 }}

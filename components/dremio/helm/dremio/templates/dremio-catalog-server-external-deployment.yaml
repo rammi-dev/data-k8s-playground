@@ -1,0 +1,211 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+{{- if .Values.catalog.externalAccess.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dremio.catalog.app.name" $ }}-external
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: dremio
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app: {{ include "dremio.catalog.app.name" $ }}
+    app-group: dremio
+    catalog-type: external
+  {{- include "dremio.catalog.annotations" $ | nindent 2 }}
+spec:
+  replicas: {{ .Values.catalog.externalAccess.replicas }}
+  selector:
+    matchLabels:
+      app: {{ include "dremio.catalog.app.name" $ }}
+      catalog-type: external
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dremio
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app: {{ include "dremio.catalog.app.name" $ }}
+        app-group: dremio
+        catalog-type: external
+        external-client-access: "true"
+        {{- include "dremio.catalog.podLabels" $ | nindent 8 }}
+      annotations:
+        metrics.dremio.com/scrape: "true"
+        metrics.dremio.com/port: {{ include "dremio.catalog.ports.mgmt.external" $ | quote }}
+        metrics.dremio.com/path: "/metrics"
+        {{- include "dremio.catalog.podAnnotations" $ | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.catalog.serviceAccount }}
+      {{- include "dremio.catalog.priorityClassName" $ | nindent 6 }}
+      {{- include "dremio.catalog.externalAccess.nodeSelector" $ | nindent 6 }}
+      {{- include "dremio.catalog.externalAccess.tolerations" $ | nindent 6 }}
+      {{- include "dremio.catalog.podSecurityContext" $ | nindent 6 }}
+      initContainers:
+        {{- include "dremio.catalog.copyRunScriptsInitContainer" . | nindent 8 }}
+        {{- include "dremio.mongodb.waitForMongoInitContainer" . | nindent 8 }}
+        {{- include "dremio.catalog.extraInitContainers" . | nindent 8 }}
+      containers:
+        - name: {{ include "dremio.catalog.app.name" $ }}-external
+          image: {{ $.Values.catalog.externalAccess.image.repository }}:{{ $.Values.catalog.externalAccess.image.tag }}
+          imagePullPolicy: {{ $.Values.catalog.externalAccess.image.pullPolicy }}
+          {{- include "dremio.catalog.containerSecurityContext" $ | nindent 10 }}
+          env:
+            - name: polaris.persistence.backend.type
+              value: "MongoDb"
+            # polaris.backend.name is kept for compatibility with older catalog images
+            - name: polaris.backend.name
+              value: "MongoDb"
+            - name: polaris.persistence.cache.reference-ttl
+              value: PT0S
+            {{- if $.Values.catalog.externalAccess.tls.enabled }}
+            - name: quarkus.http.ssl-port
+              value: "{{ include "dremio.catalog.ports.http.external" $ }}"
+            - name: quarkus.http.insecure-requests
+              value: "disabled"
+            - name: quarkus.http.tls-configuration-name
+              value: "catalog-server"
+            - name: quarkus.tls.catalog-server.key-store.pem.0.cert
+              value: "/certs/catalog-server/keystore/tls.crt"
+            - name: quarkus.tls.catalog-server.key-store.pem.0.key
+              value: "/certs/catalog-server/keystore/tls.key"
+            - name: quarkus.tls.catalog-server.reload-period
+              value: "30m"
+            {{- else }}
+            - name: quarkus.http.port
+              value: "{{ include "dremio.catalog.ports.http.external" $ }}"
+            {{- end }}
+            - name: quarkus.management.port
+              value: "{{ include "dremio.catalog.ports.mgmt.external" $ }}"
+            - name: quarkus.grpc.server.port
+              value: "{{ include "dremio.catalog.ports.grpc" $ }}"
+            - name: quarkus.grpc.clients.roles.host
+              value: "dremio-master-0.dremio-cluster-pod.{{ .Release.Namespace }}.svc.{{ .Values.cluster.domain }}"
+            - name: quarkus.grpc.clients.roles.port
+              value: "45679"
+            - name: quarkus.grpc.clients.fgac.host
+              value: "dremio-master-0.dremio-cluster-pod.{{ .Release.Namespace }}.svc.{{ .Values.cluster.domain }}"
+            - name: quarkus.grpc.clients.fgac.port
+              value: "45679"
+            {{- if $.Values.coordinator.web.tls.enabled }}
+            - name: quarkus.oidc.auth-server-url
+              value: "https://{{ tpl .Values.catalog.externalAccess.authentication.authServerHostname . }}:9047"
+            - name: quarkus.oidc.jwks-path
+              value: "https://{{ tpl .Values.catalog.externalAccess.authentication.authServerHostname . }}:9047/oauth/discovery/jwks.json"
+            - name: quarkus.oidc.tls.tls-configuration-name
+              value: "coordinator-web"
+            - name: quarkus.tls.coordinator-web.trust-store.pem.certs
+              value: "/certs/coordinator-web/truststore/tls.crt"
+            {{- if $.Values.catalog.externalAccess.authentication.disableHostnameVerification }}
+            - name: quarkus.tls.coordinator-web.hostname-verification-algorithm
+              value: "NONE"
+            {{- end }}
+            {{- else }}
+            - name: quarkus.oidc.auth-server-url
+              value: "http://{{ tpl .Values.catalog.externalAccess.authentication.authServerHostname . }}:9047"
+            - name: quarkus.oidc.jwks-path
+              value: "http://{{ tpl .Values.catalog.externalAccess.authentication.authServerHostname . }}:9047/oauth/discovery/jwks.json"
+            {{- end }}
+            - name: quarkus.mongodb.database
+              value: "{{ include "dremio.mongodb.db" $ }}"
+            - name: quarkus.mongodb.connection-string
+              value: "{{ include "dremio.mongodb.connectionString" $ }}"
+            - name: "quarkus.mongodb.credentials.username"
+              value: "{{ include "dremio.mongodb.user" $ }}"
+            - name: "quarkus.mongodb.credentials.password"
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ include "dremio.mongodb.userSecret" $ }}"
+                  key: "{{ include "dremio.mongodb.user" $ }}"
+            - name: dremio.catalog.storage.enable-vended-credential-refresh
+              value: "{{ $.Values.catalog.storage.enableVendedCredentialRefresh }}"
+            {{- include "dremio.catalog.storage.env" $ | nindent 12 }}
+            {{- include "dremio.catalog.extraStartParams" $ | nindent 12 }}
+            {{- if .Values.catalog.extraEnvs }}
+            {{- tpl (toYaml .Values.catalog.extraEnvs) . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: run-scripts
+              mountPath: /opt/jboss/container/java/run
+            - name: temp-dir
+              mountPath: /tmp
+              readOnly: false
+            {{- if .Values.catalog.externalAccess.tls.enabled }}
+            - name: catalog-server-tls
+              mountPath: /certs/catalog-server/keystore
+            {{- end }}
+            {{- if .Values.coordinator.web.tls.enabled }}
+            - name: coordinator-web-tls
+              mountPath: /certs/coordinator-web/truststore
+            {{- end }}
+            {{- if .Values.catalog.storage.gcs.useCredentialsFile }}
+            - name: google-cloud-credentials
+              mountPath: /opt/dremio/gcs
+              readOnly: true
+            {{- end }}
+            {{- if .Values.catalog.extraVolumeMounts }}
+            {{ tpl (toYaml .Values.catalog.extraVolumeMounts) . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: cat-http-ext
+              containerPort: {{ include "dremio.catalog.ports.http.external" $ }}
+              protocol: TCP
+            - name: cat-mgmt-ext
+              containerPort: {{ include "dremio.catalog.ports.mgmt.external" $ }}
+              protocol: TCP
+            - name: cat-grpc-ext
+              containerPort: {{ include "dremio.catalog.ports.grpc" $ }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /q/health/live
+              port: cat-mgmt-ext
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 5
+            timeoutSeconds: 10
+            terminationGracePeriodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /q/health/ready
+              port: cat-mgmt-ext
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 5
+            timeoutSeconds: 10
+          resources:
+            {{- tpl (toYaml .Values.catalog.resources) . | nindent 12 }}
+      volumes:
+        - name: run-scripts
+          emptyDir: {}
+        - name: temp-dir
+          emptyDir: {}
+        {{- if .Values.catalog.externalAccess.tls.enabled }}
+        - name: catalog-server-tls
+          secret:
+            optional: false
+            secretName: {{ .Values.catalog.externalAccess.tls.secret }}
+        {{- end }}
+        {{- if .Values.coordinator.web.tls.enabled }}
+        - name: coordinator-web-tls
+          secret:
+            optional: false
+            secretName: {{ .Values.coordinator.web.tls.secret }}
+            items:
+              - key: tls.crt
+                path: tls.crt
+        {{- end }}
+        {{- if .Values.catalog.storage.gcs.useCredentialsFile }}
+        - name: google-cloud-credentials
+          secret:
+            secretName: {{ include "dremio.catalog.storage.gcs.secretName" $ }}
+        {{ end }}
+        {{- if .Values.catalog.extraVolumes }}
+        {{ tpl (toYaml .Values.catalog.extraVolumes) . | nindent 8 }}
+        {{- end }}
+{{- end }}

@@ -1,0 +1,33 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+apiVersion: "v2"
+name: "dremio"
+version: "3.2.3"
+keywords:
+  - dremio
+  - data
+home: https://www.dremio.com/
+
+type: application
+# After changing this file, run:
+# helm dependency update charts/src/main/helm/dremio
+# Then commit the changes, including those to the Chart.lock file.
+dependencies:
+
+  - name: dremio-mongodb-operator-helm
+    version: 1.21.1-dremio-20251103174242-5f562d3
+    repository: oci://quay.io/dremio
+    alias: mongodbOperator
+
+  - condition: nats.enabled
+    name : nats
+    version: 1.3.1
+    repository:  https://nats-io.github.io/k8s/helm/charts/
+
+  - condition: opensearch.enabled
+    name: dremio-opensearch-operator-helm
+    version: 2.8.0-dremio-20251224222641-ee3f1ce
+    repository: oci://quay.io/dremio
+    alias: opensearchOperator

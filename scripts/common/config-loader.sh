@@ -95,10 +95,17 @@ CEPH_CHART_REPO=$(load_config '.components.ceph.chart_repo' 'https://charts.rook
 CEPH_CHART_NAME=$(load_config '.components.ceph.chart_name' 'rook-ceph')
 CEPH_CHART_VERSION=$(load_config '.components.ceph.chart_version' 'v1.13.0')
 
+# Component: Dremio
+DREMIO_ENABLED=$(load_config '.components.dremio.enabled' 'false')
+DREMIO_NAMESPACE=$(load_config '.components.dremio.namespace' 'dremio')
+DREMIO_CHART_OCI=$(load_config '.components.dremio.chart_oci' 'oci://quay.io/dremio/dremio-helm')
+DREMIO_CHART_VERSION=$(load_config '.components.dremio.chart_version' '3.2.3')
+
 # Export all variables
 export VM_CPUS VM_MEMORY VM_DISK_SIZE VM_BOX VM_NAME
 export RESERVED_CPUS RESERVED_MEMORY
 export HOST_PROJECT_PATH HOST_DATA_PATH GUEST_PROJECT_PATH GUEST_DATA_PATH
 export MINIKUBE_DRIVER MINIKUBE_NODES MINIKUBE_CPUS MINIKUBE_MEMORY MINIKUBE_DISK_SIZE MINIKUBE_K8S_VERSION MINIKUBE_EXTRA_CONFIG
 export CEPH_ENABLED CEPH_NAMESPACE CEPH_CHART_REPO CEPH_CHART_NAME CEPH_CHART_VERSION
+export DREMIO_ENABLED DREMIO_NAMESPACE DREMIO_CHART_OCI DREMIO_CHART_VERSION
 export PROJECT_ROOT CONFIG_FILE

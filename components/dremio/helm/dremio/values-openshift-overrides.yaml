@@ -1,0 +1,181 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+# This file contains overrides for OpenShift-specific configuration and should be combined
+# with other overrides using `helm install -f values-overrides.yaml -f values-openshift-overrides.yaml`
+
+# Natsbox doesn't work well without a lot of customization on openshift.
+# Rather than complicate the deployment we can remove this optional pod
+nats:
+  natsBox:
+    enabled: false
+
+useOpenShiftRoles: true
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  privileged: false
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+
+coordinator:
+  podSecurityContext:
+    fsGroup: 999
+    fsGroupChangePolicy: OnRootMismatch
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    privileged: false
+    readOnlyRootFilesystem: false
+    runAsGroup: 999
+    runAsNonRoot: true
+    runAsUser: 999
+    seccompProfile:
+      type: RuntimeDefault
+
+engine:
+  operator:
+    podSecurityContext:
+      runAsUser: null
+      runAsGroup: null
+      fsGroup: null
+      fsGroupChangePolicy: Always
+    containerSecurityContext:
+      runAsUser: null
+      runAsGroup: null
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      privileged: false
+      readOnlyRootFilesystem: false
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault
+
+
+catalog:
+  containerSecurityContext:
+    runAsUser: null
+    runAsGroup: null
+    runAsNonRoot: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+  podSecurityContext:
+    fsGroup: null
+    seccompProfile:
+      type: RuntimeDefault
+
+mongodb:
+  waitContainer:
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      privileged: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 999
+    fsGroupChangePolicy: OnRootMismatch
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    privileged: false
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    capabilities:
+      drop:
+        - ALL
+  backup:
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsGroup: null
+      runAsUser: null
+
+mongodbHooks:
+  podSecurityContext:
+    fsGroup: null
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsGroup: null
+    runAsUser: null
+
+mongodbOperator:
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: null
+    runAsGroup: null
+    fsGroup: null
+    seccompProfile:
+      type: RuntimeDefault
+
+opensearch:
+  setVMMaxMapCount: false
+  podSecurityContext:
+    runAsUser: null
+    runAsGroup: null
+    fsGroup: null
+  containerSecurityContext:
+    runAsUser: null
+    runAsGroup: null
+    readOnlyRootFilesystem: true
+    privileged: false
+  clusterPodSecurityContext:
+    runAsUser: null
+    fsGroup: null
+
+opensearchOperator:
+  manager:
+    extraEnv:
+      - name: SKIP_INIT_CONTAINER
+        value: "true"
+
+zookeeper:
+  podSecurityContext:
+    runAsUser: null
+    fsGroup: null
+    runAsNonRoot: true
+  containerSecurityContext:
+    privileged: false
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: null
+    runAsGroup: null
+    capabilities:
+      drop:
+        - ALL

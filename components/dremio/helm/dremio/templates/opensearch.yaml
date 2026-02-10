@@ -1,0 +1,764 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+#
+# To use Kubernetes service account JWT with OpenSearch, OpenSearch security config must
+# include public portion of the signing key used by the Kubernetes API server. The designers of
+# Open/Elastic search chose to pass this public key as a configuration parameter rather
+# than getting it dynamically from the "iss" URL from the header of JWT and configuring allowed
+# issuers in the security config. Moreover, the signing key must be formatted in two lines: BEGIN
+# header on the first line and rest of the PEM on the second line.
+#
+# Config parameter: https://github.com/opensearch-project/security/blob/d2daa9870ca586d80588428d90caacd9739de583/config/config.yml#L133
+# Key format: https://github.com/opensearch-project/security/blob/d2daa9870ca586d80588428d90caacd9739de583/src/main/java/org/opensearch/security/util/KeyUtils.java#L56
+#
+# The code below:
+#   - Creates service account with permissions to modify secrets and to read config maps from Kubernetes.
+#   - Read JWKS from /openid/v1/jwks Kubernetes API endpoint, use kubectl proxy to auth.
+#   - Read modulus and exponent from JWKS, format them into hexed base64 string with padding.
+#   - Create PEM file with the key using openssl, and then format it into a single line required by KeyUtils.java.
+#   - Replace placeholder in the security config with the resulting value.
+#   - Finally, store a secret where OpenSearch will read the security config from.
+#  The temporary service account, role, rolebinding, configmap are deleted after the job is done.
+
+{{- if $.Values.opensearch.enabled }}
+
+# Role for reading config maps and creating/updating secrets.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dremio-opensearch-aux-role
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation
+    "helm.sh/hook-weight": "-10"
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "create", "delete"]
+- apiGroups: ["opensearch.dremio.io"]
+  resources: ["opensearchclusters"]
+  verbs: ["get", "delete", "list", "watch", "patch"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "create", "update", "delete"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "create", "delete", "list", "watch"]
+---
+# Service account to run the pre-install hook with.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dremio-opensearch-aux
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+    helm.sh/hook-weight: "-10"
+    {{- with .Values.opensearch.preInstallJob.serviceAccountAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- include "dremio.imagePullSecrets" $ }}
+---
+# Role binding to give the service account access to secrets and config maps.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dremio-opensearch-aux-rolebinding
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-delete-policy": before-hook-creation
+    "helm.sh/hook-weight": "-10"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dremio-opensearch-aux-role
+subjects:
+  - kind: ServiceAccount
+    name: dremio-opensearch-aux
+    namespace: {{ .Release.Namespace }}
+---
+# Config map to store the security configuration file template to update in the job.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opensearch-config-scripts
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation
+    "helm.sh/hook-weight": "-10"
+data:
+  config.yml: |-
+    {{ .Files.Get "config/opensearch/security-config.yaml" | nindent 4 }}
+  roles_mapping.yml: |-
+    {{ .Files.Get "config/opensearch/roles-mapping.yaml" | nindent 4 }}
+  generate_security_config.sh: |-
+    {{ .Files.Get "scripts/opensearch/generate_security_config.sh" | nindent 4 }}
+  generate_tls_cert.sh: |-
+    {{ .Files.Get "scripts/opensearch/generate_tls_cert.sh" | nindent 4 }}
+---
+# OpenSearch security config generator job.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: opensearch-pre-install
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
+    "helm.sh/hook-weight": "0"
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      serviceAccountName: dremio-opensearch-aux
+      {{- include "dremio.opensearch.preInstallJob.priorityClassName" $ | nindent 6 }}
+      {{- include "dremio.opensearch.preInstallJob.nodeSelector" $ | nindent 6 }}
+      {{- include "dremio.opensearch.preInstallJob.tolerations" $ | nindent 6 }}
+      volumes:
+        - name: opensearch-config-scripts
+          configMap:
+            name: opensearch-config-scripts
+            items:
+              - key: config.yml
+                path: config.yml
+              - key: roles_mapping.yml
+                path: roles_mapping.yml
+              - key: generate_security_config.sh
+                path: generate_security_config.sh
+              - key: generate_tls_cert.sh
+                path: generate_tls_cert.sh
+        - name: workdir
+          emptyDir: {}
+      securityContext:
+        {{- toYaml .Values.opensearch.podSecurityContext | nindent 8 }}
+      containers:
+        - name: config-generator
+          image: {{ $.Values.opensearch.preInstallJob.image.repository }}:{{ $.Values.opensearch.preInstallJob.image.tag }}
+          imagePullPolicy: {{ $.Values.opensearch.preInstallJob.image.pullPolicy }}
+          volumeMounts:
+            - name: opensearch-config-scripts
+              mountPath: /opensearch-config-scripts
+            - name: workdir
+              mountPath: /opensearch
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -e
+
+              # Copy scripts from read-only volume and make them executable.
+              cp /opensearch-config-scripts/* /opensearch
+              chmod +x /opensearch/*.sh
+              cd /opensearch
+
+              {{- if not $.Values.opensearch.disableTlsCertGeneration }}
+              # Generate TLS certificate.
+              TLS_CERTS_SECRET_NAME={{ .Values.opensearch.tlsCertsSecretName }}
+              # Include name of the opensearch service into cert domain names.
+              DOMAIN_NAMES={{ .Values.opensearch.serviceName }}.{{ .Release.Namespace }}.svc.{{ .Values.cluster.domain }}
+              /opensearch/generate_tls_cert.sh "$TLS_CERTS_SECRET_NAME" "$DOMAIN_NAMES"
+              {{- end }}
+
+              # Create admin password secret.
+              ADMIN_CREDENTIALS_SECRET={{ .Values.opensearch.clusterName }}-admin-credentials
+              kubectl delete secret $ADMIN_CREDENTIALS_SECRET --ignore-not-found
+              kubectl create secret generic $ADMIN_CREDENTIALS_SECRET \
+                -n {{ .Release.Namespace }} \
+                --from-literal=username='admin' \
+                --from-literal=password='{{ .Values.opensearch.initialAdminPassword }}'
+
+              # Generate security config.
+              CONFIG_SECRET_NAME=opensearch-security-config
+              CONFIG_TEMPLATE_PATH="/opensearch/config.yml"
+              ENABLE_HTTP_BASIC_AUTH={{ .Values.opensearch.enableHttpBasicAuth }}
+              NAMESPACE={{ .Release.Namespace }}
+              COORDINATOR_SERVICE_ACCOUNT={{ .Values.coordinator.serviceAccount }}
+              ROLES_MAPPING_TEMPLATE_PATH="/opensearch/roles_mapping.yml"
+              CLUSTER_DOMAIN={{ .Values.cluster.domain }}
+              /opensearch/generate_security_config.sh \
+                "$CONFIG_SECRET_NAME" \
+                "$CONFIG_TEMPLATE_PATH" \
+                "$ENABLE_HTTP_BASIC_AUTH" \
+                "$NAMESPACE" \
+                "$COORDINATOR_SERVICE_ACCOUNT" \
+                "$ROLES_MAPPING_TEMPLATE_PATH" \
+                "$CLUSTER_DOMAIN"
+          securityContext:
+            {{- toYaml .Values.opensearch.containerSecurityContext | nindent 12 }}
+          resources:
+            limits:
+              cpu: 100m
+              memory: 100Mi
+            requests:
+              cpu: 100m
+              memory: 100Mi
+      restartPolicy: OnFailure
+---
+{{- $keystoreSecret  := lookup "v1" "Secret" .Release.Namespace "opensearch-keystore-secret" }}
+{{- if not $keystoreSecret }}
+---
+# Job 1: Create keystore and populate it
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: opensearch-keystore-creator
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
+    "helm.sh/hook-weight": "-4"
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      serviceAccountName: dremio-opensearch-aux
+      {{- include "dremio.opensearch.preInstallJob.priorityClassName" $ | nindent 6 }}
+      {{- include "dremio.opensearch.preInstallJob.nodeSelector" $ | nindent 6 }}
+      {{- include "dremio.opensearch.preInstallJob.tolerations" $ | nindent 6 }}
+      volumes:
+        - name: keystore-volume
+          emptyDir: {}
+        - name: config-volume
+          emptyDir: {}
+      securityContext:
+        {{- toYaml .Values.opensearch.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: keystore-creator
+          image: {{ .Values.opensearch.image.repository }}:{{ .Values.opensearch.image.tag }}
+          volumeMounts:
+            - name: keystore-volume
+              mountPath: /tmp/keystore
+            - name: config-volume
+              mountPath: /usr/share/opensearch/config
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              echo "Creating keystore..."
+              if [ ! -f /usr/share/opensearch/config/opensearch.keystore ]; then
+                /usr/share/opensearch/bin/opensearch-keystore create
+              fi
+              cp -a /usr/share/opensearch/config/opensearch.keystore /tmp/keystore/
+          securityContext:
+            {{- toYaml .Values.opensearch.containerSecurityContext | nindent 12 }}
+          {{- if .Values.opensearch.preInstallJob.keystoreCreator.resources }}
+          resources:
+            {{- toYaml .Values.opensearch.preInstallJob.keystoreCreator.resources | nindent 12 }}
+          {{- end }}
+      containers:
+        - name: keystore-to-configmap
+          image: {{ .Values.utils.image.repository }}:{{ .Values.utils.image.tag }}
+          imagePullPolicy: {{ .Values.utils.image.pullPolicy }}
+          volumeMounts:
+            - name: keystore-volume
+              mountPath: /tmp/keystore
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+
+              # Check if keystore file exists
+              if [ ! -f /tmp/keystore/opensearch.keystore ]; then
+                echo "Error: Keystore file not found"
+                exit 1
+              fi
+
+              # Create Secret
+              echo "Creating Secret"
+              kubectl create secret generic opensearch-keystore-secret -n {{ .Release.Namespace }} --from-file=/tmp/keystore/opensearch.keystore
+              echo "Secret created successfully"
+          securityContext:
+            {{- toYaml .Values.opensearch.containerSecurityContext | nindent 12 }}
+          {{- if .Values.opensearch.preInstallJob.keystoreCreator.resources }}
+          resources:
+            {{- toYaml .Values.opensearch.preInstallJob.keystoreCreator.resources | nindent 12 }}
+          {{- end }}
+      restartPolicy: OnFailure
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: opensearch-post-init-delay
+  labels:
+    app: opensearch-post-init-delay
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: dremio-opensearch-aux
+      {{- include "dremio.opensearch.oidcProxy.nodeSelector" $ | nindent 6 }}
+      {{- include "dremio.opensearch.oidcProxy.tolerations" $ | nindent 6 }}
+      securityContext:
+        {{- toYaml .Values.opensearch.podSecurityContext | nindent 8 }}
+      containers:
+      - name: apply-delay
+        image: {{ $.Values.opensearch.preInstallJob.image.repository }}:{{ $.Values.opensearch.preInstallJob.image.tag }}
+        command: ["sh","-ceu"]
+        args:
+          - |
+            OS_HOST="{{ .Values.opensearch.serviceName }}"
+            PORT=9200
+            OS_URL="https://${OS_HOST}:${PORT}"
+            CURL="curl --fail --show-error --silent --connect-timeout 5 --max-time 10 --cert /tls/tls.crt --key /tls/tls.key --cacert /tls/ca.crt --insecure"
+            echo "Configuring OpenSearch delayed node-left timeout with retries..."
+            curl_with_retry() {
+              MAX=180; DELAY=10
+              for i in $(seq 1 $MAX); do
+                echo "Attempt $i/$MAX: $*"
+                if "$@"; then return 0; fi
+                echo "  -> failed (exit $?), retrying in ${DELAY}s..."
+                sleep $DELAY
+              done
+              echo "ERROR: command failed after ${MAX} attempts"
+              return 1
+            }
+            curl_with_retry $CURL -XPUT "${OS_URL}/_index_template/delayed-node-left" \
+              -H 'Content-Type: application/json' -d '{
+                "index_patterns": ["*"],
+                "template": { "settings": { "index.unassigned.node_left.delayed_timeout": "10m" } },
+                "priority": 1,
+                "version": 1
+              }'
+            curl_with_retry $CURL -XPUT "${OS_URL}/*/_settings?expand_wildcards=open,closed&allow_no_indices=true&ignore_unavailable=true" \
+              -H 'Content-Type: application/json' -d '{
+                "index.unassigned.node_left.delayed_timeout": "10m"
+              }'
+            # Verify (non-fatal)
+            $CURL "${OS_URL}/*/_settings?expand_wildcards=all&filter_path=**.index.unassigned.node_left.delayed_timeout&pretty" | tee /dev/stderr >/dev/null || true
+        volumeMounts:
+        - name: admin-certs
+          mountPath: /tls
+          readOnly: true
+        securityContext:
+          {{- toYaml .Values.opensearch.containerSecurityContext | nindent 10 }}
+        resources:
+          limits:
+            cpu: 100m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+      volumes:
+      - name: admin-certs
+        secret:
+          secretName: opensearch-tls-certs-admin   # contains ca.crt, tls.crt, tls.key
+---
+{{- if not $.Values.opensearch.disableTlsCertGeneration }}
+# OpenSearch TLS certificate rotation.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: opensearch-cert-rotation
+spec:
+  # On the first of every month at midnight UTC.
+  schedule: "0 0 1 * *"
+  # Limits on number of finished jobs to keep.
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      # At most two retries.
+      backoffLimit: 2
+      template:
+        spec:
+          serviceAccountName: dremio-opensearch-aux
+          {{- include "dremio.opensearch.preInstallJob.priorityClassName" $ | nindent 10 }}
+          {{- include "dremio.opensearch.preInstallJob.nodeSelector" $ | nindent 10 }}
+          volumes:
+            - name: opensearch-config-scripts
+              configMap:
+                name: opensearch-config-scripts
+                items:
+                  - key: generate_tls_cert.sh
+                    path: generate_tls_cert.sh
+            - name: workdir
+              emptyDir: {}
+          securityContext:
+            {{- toYaml .Values.opensearch.podSecurityContext | nindent 12 }}
+          containers:
+            - name: config-generator
+              image: {{ $.Values.opensearch.preInstallJob.image.repository }}:{{ $.Values.opensearch.preInstallJob.image.tag }}
+              imagePullPolicy: {{ $.Values.opensearch.preInstallJob.image.pullPolicy }}
+              volumeMounts:
+                - name: opensearch-config-scripts
+                  mountPath: /opensearch-config-scripts
+                - name: workdir
+                  mountPath: /opensearch
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -e
+
+                  # Copy scripts from read-only volume and make them executable.
+                  cp /opensearch-config-scripts/* /opensearch
+                  chmod +x /opensearch/*.sh
+                  cd /opensearch
+
+                  # Generate TLS certificate.
+                  TLS_CERTS_SECRET_NAME={{ .Values.opensearch.tlsCertsSecretName }}
+                  # Include name of the opensearch service into cert domain names.
+                  DOMAIN_NAMES={{ .Values.opensearch.serviceName }}.{{ .Release.Namespace }}.svc.{{ .Values.cluster.domain }}
+                  /opensearch/generate_tls_cert.sh "$TLS_CERTS_SECRET_NAME" "$DOMAIN_NAMES"
+              securityContext:
+                {{- toYaml .Values.opensearch.containerSecurityContext | nindent 16 }}
+              resources:
+                limits:
+                  cpu: 100m
+                  memory: 100Mi
+                requests:
+                  cpu: 100m
+                  memory: 100Mi
+          # Retry on failure.
+          restartPolicy: OnFailure
+---
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opensearch-config
+data:
+  log4j2.properties: |
+    status = error
+
+    appender.console.type = Console
+    appender.console.name = console
+    appender.console.layout.type = PatternLayout
+    appender.console.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %m%n
+
+    rootLogger.level = info
+    rootLogger.appenderRef.console.ref = console
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oidc-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oidc-proxy
+  template:
+    metadata:
+      labels:
+        app: oidc-proxy
+        {{- include "dremio.opensearch.oidcProxy.podLabels" $ | nindent 8 }}
+    spec:
+      serviceAccountName: dremio-opensearch-aux
+      {{- include "dremio.opensearch.oidcProxy.priorityClassName" $ | nindent 6 }}
+      {{- include "dremio.opensearch.oidcProxy.nodeSelector" $ | nindent 6 }}
+      {{- include "dremio.opensearch.oidcProxy.tolerations" $ | nindent 6 }}
+      securityContext:
+        {{- toYaml .Values.opensearch.podSecurityContext | nindent 8 }}
+      containers:
+        - name: oidc-proxy
+          image: {{ $.Values.opensearch.preInstallJob.image.repository }}:{{ $.Values.opensearch.preInstallJob.image.tag }}
+          imagePullPolicy: {{ $.Values.opensearch.preInstallJob.image.pullPolicy }}
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -e
+
+              # Read OpenID config and parse jwks_uri from it.
+              TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+              ISSUER_URL=$(echo $TOKEN | cut -d '.' -f 2 | base64 -d | jq -r .iss)
+              echo "ISSUER: $ISSUER_URL"
+              if [[ "$ISSUER_URL" == */ ]]; then
+                OPENID_CONFIG_URL="${ISSUER_URL}.well-known/openid-configuration"
+              else
+                OPENID_CONFIG_URL="${ISSUER_URL}/.well-known/openid-configuration"
+              fi
+              USE_TOKEN="true"
+              if [[ "$ISSUER_URL" =~ "googleapis" ]]; then
+                # Google rejects auth header if supplied as bad parameter.
+                echo "Detected GCP from $ISSUER_URL"
+                JWKS_URI="$(curl -sSk "$OPENID_CONFIG_URL" | jq -r .jwks_uri)"
+                USE_TOKEN="false"
+              else
+                JWKS_URI="$(curl -sSk -H "Authorization: Bearer $TOKEN" "$OPENID_CONFIG_URL" | jq -r .jwks_uri)"
+              fi
+
+              if [[ -z "$JWKS_URI" || "$JWKS_URI" == "null" ]]; then
+                echo "Error: JWKS_URI could not be determined" >&2
+                exit 1
+              fi
+              echo "JWKS_URI: $JWKS_URI"
+
+              # Not to deal with shell escaping, save responder code in a shell script.
+              echo '#!/bin/sh
+              read METHOD REQUEST_PATH VERSION
+              if [ "$METHOD" = "GET" ]; then
+                if [ "$USE_TOKEN" = "false" ]; then
+                  BODY=$(curl -sSfk "$JWKS_URI" || true)
+                else
+                  TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+                  BODY=$(curl -sSfk -H "Authorization: Bearer $TOKEN" "$JWKS_URI" || true)
+                fi
+                # BODY will be empty in case of http errors from the curl calls.
+                if [ -n "$BODY" ]; then
+                  BODY_LEN=${#BODY}
+                  echo "HTTP/1.1 200 OK"
+                  echo "Content-Type: application/json"
+                  echo "Content-Length: $BODY_LEN"
+                  echo
+                  echo "$BODY"
+                else
+                  echo "HTTP/1.1 502 Bad Gateway"
+                  echo "Content-Length: 0"
+                  echo
+                fi
+              else
+                echo "HTTP/1.1 405 Method not allowed"
+                echo
+                echo
+              fi' > /tmp/jwks-responder.sh && chmod +x /tmp/jwks-responder.sh
+
+              # Start socat to listen on port 8080, fork a new process for each connection.
+              export USE_TOKEN JWKS_URI
+              socat TCP-LISTEN:8080,reuseaddr,fork SYSTEM:"/tmp/jwks-responder.sh"
+          securityContext:
+            {{- toYaml .Values.opensearch.containerSecurityContext | nindent 12 }}
+          ports:
+            - containerPort: 8080
+          {{- if .Values.opensearch.containerSecurityContext.readOnlyRootFilesystem }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          {{- end }}
+          {{- if ((($.Values.opensearch).oidcProxy).resources) }}
+          resources:
+            {{- $.Values.opensearch.oidcProxy.resources | toYaml | nindent 12 }}
+          {{- end }}
+      {{- if .Values.opensearch.containerSecurityContext.readOnlyRootFilesystem }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oidc-proxy
+spec:
+  selector:
+    app: oidc-proxy
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+---
+apiVersion: opensearch.dremio.io/v1
+kind: OpenSearchCluster
+metadata:
+  name: {{ .Values.opensearch.clusterName }}
+spec:
+  initHelper:
+    image: {{ $.Values.busyBox.image.repository }}:{{ $.Values.busyBox.image.tag }}
+    imagePullPolicy: {{ $.Values.busyBox.image.pullPolicy }}
+    resources:
+      {{- $.Values.initResources | toYaml | nindent 6 }}
+
+  security:
+    config:
+      # Secret with username and password that is copied by the operator to another secret
+      # which in turn is mounted to /mnt/admin-credentials in the pods.
+      adminCredentialsSecret:
+        name: {{ .Values.opensearch.clusterName }}-admin-credentials
+      # This is used by the securityconfig-update job to initialize security.
+      # It takes ~4-6 minutes due to the hard-coded 120s delay between checks:
+      #   https://github.com/opensearch-project/opensearch-k8s-operator/blob/335eb90abc97598655d4127d9d7e140f6c933e36/opensearch-operator/pkg/reconcilers/securityconfig.go#L36
+      adminSecret:
+        name: {{ .Values.opensearch.tlsCertsSecretName }}-admin
+      securityConfigSecret:
+        name: opensearch-security-config
+    tls:
+      http:
+        secret:
+          name: {{ .Values.opensearch.tlsCertsSecretName }}
+        generate: false
+        adminDn: ['CN=admin,OU=Engineering,O=Dremio,L=San Francisco,ST=CA,C=US' ]
+      transport:
+        secret:
+          name: {{ .Values.opensearch.tlsCertsSecretName }}
+        generate: false
+        adminDn: ['CN=admin,OU=Engineering,O=Dremio,L=San Francisco,ST=CA,C=US' ]
+        nodesDn: ['CN={{ .Values.opensearch.serviceName }}.{{ .Release.Namespace }}.svc.{{ .Values.cluster.domain }},OU=Engineering,O=Dremio,L=San Francisco,ST=CA,C=US' ]
+  dashboards:
+    enable: {{ .Values.opensearch.dashboards.enable }}
+    version: {{ .Values.opensearch.dashboards.version }}
+    replicas: {{ .Values.opensearch.dashboards.replicas }}
+  general:
+    image: {{ .Values.opensearch.image.repository }}:{{ .Values.opensearch.image.tag }}
+    version: {{ .Values.opensearch.version | default .Values.opensearch.image.tag }}
+    serviceName: {{ .Values.opensearch.serviceName }}
+    serviceAccount: {{ .Values.opensearch.serviceAccount }}
+    setVMMaxMapCount: {{ .Values.opensearch.setVMMaxMapCount }}
+    {{- include "dremio.opensearchcluster.podSecurityContext" $ | nindent 4 }}
+    {{- include "dremio.opensearchcluster.securityContext" $ | nindent 4 }}
+    additionalVolumes:
+    - name: temp
+      path: /tmp
+      emptyDir: {}
+    - name: logsdir
+      path: /usr/share/opensearch/logs
+      emptyDir: {}
+    - name: keystore-volume
+      path: /usr/share/opensearch/config/opensearch.keystore
+      subPath: opensearch.keystore
+      secret:
+        secretName: opensearch-keystore-secret
+    {{- with .Values.opensearch.extraVolumes }}
+    {{ toYaml . | nindent 4 }}
+    {{- end }}
+    additionalConfig:
+      # Disable running models only on dedicated 'ml' nodes.
+      plugins.ml_commons.only_run_on_ml_node: "false"
+
+      # Allow registering custom models.
+      plugins.ml_commons.allow_registering_model_via_url: "true"
+
+      # These thresholds trigger this message "Memory Circuit Breaker is open, please check your resources"
+      # It's unclear how the memory is calculated, setting these to 100 to disable.
+      #   https://opensearch.org/docs/latest/ml-commons-plugin/cluster-settings/#set-native-memory-threshold
+      plugins.ml_commons.native_memory_threshold: "100"
+      plugins.ml_commons.jvm_heap_memory_threshold: "100"
+
+      # Search thread pool parameters.
+      thread_pool.search.queue_size: "1000"
+      thread_pool.search.size: "30"
+
+      # Disable automatic creation of indices on ingest.
+      #   https://opensearch.org/docs/latest/install-and-configure/configuring-opensearch/index-settings/#dynamic-cluster-level-index-settings
+      action.auto_create_index: "security-auditlog-*"
+
+      # Disable creation of top queries indices.
+      search.insights.top_queries.latency.enabled: "false"
+      search.insights.top_queries.cpu.enabled: "false"
+      search.insights.top_queries.memory.enabled: "false"
+
+      ######## Start OpenSearch Security Configuration ########
+      # Enables watching changes to TLS cert files and reloading of them.
+      plugins.security.ssl.certificates_hot_reload.enabled: "true"
+      plugins.security.audit.type: "noop"
+      ######## End OpenSearch Security Configuration ########
+      {{- with .Values.opensearch.routing }}
+      {{- if .nodeConcurrentIncomingRecoveries }}
+      cluster.routing.allocation.node_concurrent_incoming_recoveries: "{{ .nodeConcurrentIncomingRecoveries }}"
+      {{- end }}
+      {{- if .nodeConcurrentOutgoingRecoveries }}
+      cluster.routing.allocation.node_concurrent_outgoing_recoveries: "{{ .nodeConcurrentOutgoingRecoveries }}"
+      {{- end }}
+      {{- if .nodeConcurrentRecoveries }}
+      cluster.routing.allocation.node_concurrent_recoveries: "{{ .nodeConcurrentRecoveries }}"
+      {{- end }}
+      {{- if .clusterConcurrentRebalance }}
+      cluster.routing.allocation.cluster_concurrent_rebalance: "{{ .clusterConcurrentRebalance }}"
+      {{- end }}
+      {{- end }}
+
+  nodePools:
+    - component: nodes
+      replicas: {{ .Values.opensearch.replicas }}
+      diskSize: {{ .Values.opensearch.volumeSize }}
+      jvm: {{ .Values.opensearch.opensearchJavaOpts }}
+      resources:  {{ toYaml .Values.opensearch.resources | nindent 8 }}
+      # All replicas share the required roles.
+      roles: [ cluster_manager, data, ml, ingest ]
+      persistence:
+        pvc:
+          {{ include "dremio.opensearch.storageClass" $ }}
+          accessModes:
+            - ReadWriteOnce
+      {{- if .Values.opensearch.affinity }}
+      affinity: {{ toYaml .Values.opensearch.affinity | nindent 8 }}
+      {{- end }}
+      {{- if .Values.opensearch.extraVolumes }}
+      additionalVolumes:
+      {{- toYaml .Values.opensearch.extraVolumes | nindent 8 }}
+      {{- end }}
+      env:
+        # Disable demo security config.
+        - name: DISABLE_INSTALL_DEMO_CONFIG
+          value: "true"
+    {{- include "dremio.opensearch.priorityClassName" $ | nindent 6 }}
+    {{- include "dremio.opensearch.nodeSelector" $ | nindent 6 }}
+    {{- include "dremio.opensearch.tolerations" $ | nindent 6 }}
+    {{- include "dremio.opensearch.podLabels" $ | nindent 6 }}
+  bootstrap:
+    {{- include "dremio.opensearch.bootstrap.nodeSelector" $ | nindent 4 }}
+    {{- include "dremio.opensearch.bootstrap.tolerations" $ | nindent 4 }}
+    {{- if .Values.opensearch.bootstrap.resources }}
+    resources: {{ toYaml .Values.opensearch.bootstrap.resources | nindent 6 }}
+    {{- end }}
+---
+# "helm uninstall" could delete the operator before the custom resources,
+# use pre-delete hook to delete open search cluster.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: delete-opensearchcluster
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 120
+  template:
+    spec:
+      serviceAccountName: dremio-opensearch-aux
+      restartPolicy: Never
+      {{- include "dremio.opensearch.preInstallJob.tolerations" $ | nindent 6 }}
+      {{- include "dremio.opensearch.preInstallJob.nodeSelector" $ | nindent 6 }}
+      {{- include "dremio.opensearch.preInstallJob.priorityClassName" $ | nindent 6 }}
+      securityContext:
+        {{- toYaml .Values.opensearch.podSecurityContext | nindent 8 }}
+      containers:
+        - name: delete-opensearchcluster
+          image: {{ .Values.utils.image.repository }}:{{ .Values.utils.image.tag }}
+          imagePullPolicy: {{ .Values.utils.image.pullPolicy }}
+          command:
+            - "/bin/sh"
+            - "-c"
+            - |
+              set -e
+              kubectl delete  -n {{ .Release.Namespace }} opensearchclusters.opensearch.dremio.io --all --ignore-not-found=true &
+              # we try to check the status of the delete operation for 90 seconds with 10 seconds intervals between checks
+              # if it does not complete in that time we leave 30 seconds (subtracting 90 seconds from the activeDeadlineSeconds of 120 seconds = 30)
+              # for the patch operations to remove finalizers
+              for i in 1 2 3 4 5 6 7 8 9; do
+                CLUSTER_COUNT=$(kubectl get opensearchclusters.opensearch.dremio.io -n {{ .Release.Namespace }} --no-headers | wc -l)
+                echo "cluster count $CLUSTER_COUNT"
+                if [ $CLUSTER_COUNT -eq 0 ]; then
+                  echo "opensearchcluster object deleted blocking until process kubectl exits"
+                  wait
+                  exit 0
+                else
+                  echo "waiting for $CLUSTER_COUNT opensearchcluster(s) to be deleted - $i/9"
+                  sleep 10
+                fi
+              done
+              echo "delete is being blocked by finalizers, force removing finalizers"
+              # run the patch operation to remove finalizers
+              OBJECTS=$(kubectl get opensearchclusters.opensearch.dremio.io -n {{ .Release.Namespace }} -o jsonpath='{.items[*].metadata.name}')
+              for OBJECT in $OBJECTS; do
+                kubectl patch opensearchcluster.opensearch.dremio.io $OBJECT -n {{ .Release.Namespace }} --type=json -p='[{"op": "remove", "path": "/metadata/finalizers"}]'
+              done
+              echo "delete opensearch cluster completed"
+          securityContext:
+            {{- toYaml .Values.opensearch.containerSecurityContext | nindent 12 }}
+          resources:
+            limits:
+              cpu: 100m
+              memory: 100Mi
+            requests:
+              cpu: 100m
+              memory: 100Mi
+# End of opensearch.enabled if.
+{{- end }}

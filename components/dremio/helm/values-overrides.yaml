@@ -1,0 +1,282 @@
+# Overrides for Dremio Helm Chart (Direct Deployment)
+# POC configuration with minimal resources and single-node components
+# Based on: https://github.com/rammi-dev/lakehouse-minikube
+#
+# Only change: MinIO → Ceph S3 (RGW) for distributed and catalog storage
+
+# Enable dev mode to allow single-node MongoDB
+devMode: true
+
+# Global image pull secrets (string array format for schema)
+imagePullSecrets:
+  - dremio-quay-secret
+
+# Dremio application
+image:
+  repository: quay.io/dremio/dremio-ee
+  tag: "26.1"
+
+# Coordinator - minimal resources
+# Minimum memory is 4Gi for Java heap + overhead
+coordinator:
+  count: 1
+  cpu: 1
+  memory: 4Gi
+  affinity: {}  # Disable anti-affinity for single-node
+  resources:
+    requests:
+      cpu: "250m"  # Reduced to fit tight cluster
+      memory: "4Gi"
+    limits:
+      cpu: "2"
+      memory: "8Gi"
+  log:
+    volume:
+      size: 10Gi
+  volumeSize: 10Gi
+  web:
+    auth:
+      type: "internal"
+  # No extra volumes needed for HTTP Ceph S3 access
+
+# Executor - disabled (using engines instead)
+executor:
+  count: 0
+
+# Engine size definitions - Minimum for health monitoring
+# These options will appear in the Dremio UI when creating engines
+# NOTE: Executors need minimum 10Gi to run health endpoint reliably
+executor:
+  count: 0
+
+engine:
+  executor:
+    # Probe settings for engine executors
+    # Executors use TCP probe on fabric port 45678 (no HTTP endpoint on 9010)
+    probes:
+      port: 45678  # fabric port - the only TCP port that's actually listening
+      startup:
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        failureThreshold: 60  # 10 minutes total (60 * 10s)
+      liveness:
+        failureThreshold: 30
+        periodSeconds: 10
+  options:
+    sizes:
+      - name: Micro
+        pods: 1
+        memory: 4Gi
+      - name: Small
+        pods: 1
+        memory: 10Gi
+      - name: Medium
+        pods: 2
+        memory: 10Gi
+      - name: Large
+        pods: 2
+        memory: 12Gi
+    targetCpuCapacities:
+      capacities:
+        - name: 1C
+          cpu: 1
+        - name: 2C
+          cpu: 2
+        - name: 4C
+          cpu: 4
+      defaultCapacity: 1C
+    resourceAllocationOffsets:
+      offsets:
+        - name: reserve-0-0
+          cpu: 0
+          memory: 0Gi
+          action: Reserve
+        - name: reserve-1-2
+          cpu: 1
+          memory: 2Gi
+          action: Reserve
+      defaultOffset: reserve-0-0
+    storage:
+      spillStorageSizes:
+        - name: 10GB
+          storage: 10Gi
+        - name: 20GB
+          storage: 20Gi
+        - name: 50GB
+          storage: 50Gi
+      defaultSpillStorageSize: 10GB
+      c3StorageSizes:
+        - name: 10GB
+          storage: 10Gi
+        - name: 20GB
+          storage: 20Gi
+        - name: 50GB
+          storage: 50Gi
+      defaultC3StorageSize: 10GB
+
+# Engines - NOT supported via Helm!
+# Engines MUST be created through the Dremio UI:
+#   1. Login to UI at http://localhost:9047
+#   2. Go to Settings → Engines
+#   3. Click "Add Engine" and choose:
+#      - Size: Small (1 pod, 12Gi memory)
+#      - CPU: 1C (minimum)
+#      - Resource Allocation: reserve-0-0 (default - no reservation)
+#   NOTE: Executors need ~12Gi to run reliably with health monitoring.
+#         8Gi is too tight and causes constant GC, preventing health endpoint from starting.
+# The engine operator will handle the deployment automatically.
+
+# Catalog - Internal Polaris only at minimal scale
+catalog:
+  replicas: 1
+  externalAccess:
+    enabled: false
+    replicas: 0
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+  # Storage configuration for Open Catalog (Polaris)
+  # This defines the default warehouse location for Iceberg tables
+  storage:
+    # Base location for catalog data (S3 bucket path)
+    location: "s3://dremio-catalog"
+    # For S3-compatible storage (Ceph RGW), use type: S3
+    type: "s3"
+    # Disable vended credential refresh - use static access keys instead of STS
+    enableVendedCredentialRefresh: "false"
+    s3:
+      # Ceph RGW endpoint - HTTP access (TLS disabled for simplicity)
+      endpoint: "http://rook-ceph-rgw-s3-store.rook-ceph.svc:80"
+      region: "us-east-1"
+      pathStyleAccess: true
+      # Skip STS - use direct access key authentication
+      skipSts: true
+      useAccessKeys: true
+      # Credentials injected by build.sh from Ceph S3 admin secret
+      accessKey: ""
+      secretKey: ""
+      # Dummy ARNs required by Dremio Catalog even when using access keys
+      roleArn: "arn:aws:iam::000000000000:role/ceph-admin"
+      userArn: "arn:aws:iam::000000000000:user/ceph"
+      # Secret name (auto-generated if not specified)
+      secretName: "catalog-server-s3-storage-creds"
+
+  # No extra configuration needed for HTTP Ceph S3 access
+
+# Catalog Services - minimal resources for POC
+# Note: template uses lowercase "catalogservices"
+catalogservices:
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+# MongoDB - Single node
+mongodb:
+  replicaCount: 1
+  unsafeFlags:
+    replsetSize: true
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+  storage:
+    resources:
+      requests:
+        storage: 10Gi
+
+# MongoDB Operator
+mongodbOperator:
+  imagePullSecrets:
+    - name: dremio-quay-secret
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+# OpenSearch - Disabled for POC (was causing OOMKilled)
+opensearch:
+  enabled: false
+
+# OpenSearch Operator
+opensearchOperator:
+  imagePullSecrets:
+    - name: dremio-quay-secret
+
+# Zookeeper - Minimal
+zookeeper:
+  count: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+# NATS - Minimal
+nats:
+  config:
+    cluster:
+      enabled: true
+      replicas: 1
+    # Enable monitoring/health endpoint
+    monitor:
+      enabled: true
+      port: 8222
+    jetstream:
+      enabled: true
+    # Merge additional config into nats.conf
+    merge:
+      http_port: 8222  # Enable HTTP monitoring endpoint
+  # cluster:
+  #  replicas: 1  # Reduce NATS to 1 replica if possible for POC
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+# Telemetry
+telemetry:
+  enabled: false
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+# Distributed storage (Ceph S3 via RGW)
+# Used for Dremio metadata, reflections, uploads, and backups
+distStorage:
+  type: "aws"
+  aws:
+    bucketName: "dremio"
+    path: "/"
+    region: "us-east-1"
+    endpoint: "rook-ceph-rgw-s3-store.rook-ceph.svc:80"
+    tls: false
+    authentication: "accessKeySecret"
+    credentials:
+      # Credentials injected by build.sh from Ceph S3 admin secret
+      accessKey: ""
+      secret: ""
+
+# extraStartParams: "-Dfs.s3a.path.style.access=true"

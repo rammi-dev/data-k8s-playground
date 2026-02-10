@@ -1,0 +1,12 @@
+dependencies:
+- name: dremio-mongodb-operator-helm
+  repository: oci://quay.io/dremio
+  version: 1.21.1-dremio-20251103174242-5f562d3
+- name: nats
+  repository: https://nats-io.github.io/k8s/helm/charts/
+  version: 1.3.1
+- name: dremio-opensearch-operator-helm
+  repository: oci://quay.io/dremio
+  version: 2.8.0-dremio-20251224222641-ee3f1ce
+digest: sha256:ffde06e95830715acd18f3d1c400e05e90e1650be022f086ed29d27f70f3efc1
+generated: "2026-01-29T11:36:29.296762-08:00"

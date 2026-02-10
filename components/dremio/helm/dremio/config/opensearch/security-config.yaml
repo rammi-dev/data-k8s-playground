@@ -1,0 +1,41 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+# See default config in: https://github.com/opensearch-project/security/blob/d2daa9870ca586d80588428d90caacd9739de583/config/config.yml
+_meta:
+  type: "config"
+  config_version: 2
+
+config:
+  dynamic:
+    http:
+      anonymous_auth_enabled: false
+      xff:
+        enabled: false
+    authc:
+      basic_auth:
+        description: "Authenticate via HTTP Basic against internal users database"
+        http_enabled: <ENABLE_HTTP_BASIC_AUTH>
+        transport_enabled: true
+        order: 4
+        http_authenticator:
+          type: basic
+          challenge: true
+        authentication_backend:
+          type: intern
+      openid_auth:
+        description: "Authenticate via Json Web Token using OpenID"
+        http_enabled: true
+        transport_enabled: false
+        order: 0
+        http_authenticator:
+          type: openid
+          challenge: false
+          config:
+            openid_connect_idp:
+              enable_ssl: false
+            jwks_uri: <JWKS_URI>
+        authentication_backend:
+          type: noop
+    authz: {}

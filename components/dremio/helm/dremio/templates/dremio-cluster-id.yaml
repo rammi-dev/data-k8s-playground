@@ -1,0 +1,91 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dremio-cluster-id
+# data is intentionally omitted
+# The cluster_id is populated after the coordinator starts by the Job below
+# Upgrades won't wipe out the contents unless --force is used. However, the job below will heal it
+# The resource will be deleted on uninstall
+# These resources add the cluster_id to the ConfigMap above
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dremio-cluster-id
+  {{- with .Values.telemetry.clusterId.serviceAccountAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- include "dremio.imagePullSecrets" $ }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dremio-cluster-id
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get,patch]
+    # Including the specific resource keeps the permissions very narrow
+    # This wouldn't work with 'create' so we have to pre-create an empty
+    # ConfigMap and then patch it.
+    resourceNames: [dremio-cluster-id]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dremio-cluster-id
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dremio-cluster-id
+subjects:
+  - kind: ServiceAccount
+    name: dremio-cluster-id
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dremio-cluster-id
+spec:
+  ttlSecondsAfterFinished: 900
+  template:
+    metadata:
+      name: dremio-cluster-id
+    spec:
+      serviceAccountName: dremio-cluster-id
+      {{- include "dremio.telemetry.clusterId.priorityClassName" $ | nindent 6 }}
+      {{- include "dremio.telemetry.podSecurityContext" $ | nindent 6 }}
+      restartPolicy: Never
+      containers:
+        - name: dremio-cluster-id
+          {{- include "dremio.telemetry.containerSecurityContext" $ | nindent 10 }}
+          image: {{ .Values.utils.image.repository }}:{{ .Values.utils.image.tag }}
+          imagePullPolicy: {{ .Values.utils.image.pullPolicy }}
+          resources:
+            limits:
+              cpu: 100m
+              memory: 100Mi
+            requests:
+              cpu: 100m
+              memory: 100Mi
+          command: [ "bash", "-c" ]
+          args:
+            - |
+              {{- $url := printf "%s://dremio-client:%d/api/v3/cluster/id"
+                (.Values.coordinator.web.tls.enabled | ternary "https" "http")
+                (int .Values.coordinator.web.port) }}
+              set -e
+              response=$(time curl -kv --retry-connrefused --retry 90 --retry-delay 10 --retry-max-time 900 {{ $url }})
+              echo "$response"
+              cluster_id=$(jq -r .id <<< "$response")
+              existing_cluster_id=$(kubectl get configmap dremio-cluster-id \
+                -o 'jsonpath={.data.cluster_id}')
+              if [ -n "$cluster_id" ] && [ "$cluster_id" != "$existing_cluster_id" ]; then
+                kubectl patch configmap dremio-cluster-id \
+                  --patch "{\"data\":{\"cluster_id\":\"$cluster_id\"}}"
+              fi

@@ -1,0 +1,585 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+suite: Dremio EE Helm Chart.ZooKeeper Tests
+templates:
+  - zookeeper.yaml
+set:
+  zookeeper.enabled: true
+tests:
+  # Basic StatefulSet tests
+  - it: should create ZooKeeper StatefulSet when enabled
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: zk
+      - equal:
+          path: spec.serviceName
+          value: zk-hs
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: should set custom replica count
+    set:
+      zookeeper:
+        count: 5
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 5
+
+  # PriorityClassName tests
+  - it: should not include priorityClassName by default
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - notExists:
+          path: spec.template.spec.priorityClassName
+  - it: zookeeper.priorityClassName should set priorityClassName
+    set:
+      zookeeper:
+        priorityClassName: zookeeper-high-priority
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: zookeeper-high-priority
+  - it: should not include priorityClassName when zookeeper.priorityClassName is empty
+    set:
+      zookeeper:
+        priorityClassName: ""
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - notExists:
+          path: spec.template.spec.priorityClassName
+
+  # NodeSelector tests
+  - it: should not include nodeSelector by default
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - notExists:
+          path: spec.template.spec.nodeSelector
+  - it: zookeeper.nodeSelector should set nodeSelector
+    set:
+      zookeeper:
+        nodeSelector:
+          disktype: ssd
+          zone: us-west1
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.disktype
+          value: ssd
+      - equal:
+          path: spec.template.spec.nodeSelector.zone
+          value: us-west1
+  - it: should use global nodeSelector when zookeeper.nodeSelector not set
+    set:
+      nodeSelector:
+        global: selector
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.global
+          value: selector
+  - it: zookeeper.nodeSelector should override global nodeSelector
+    set:
+      nodeSelector:
+        global: selector
+      zookeeper:
+        nodeSelector:
+          zk-specific: selector
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.zk-specific
+          value: selector
+      - notExists:
+          path: spec.template.spec.nodeSelector.global
+
+  # Tolerations tests
+  - it: should not include tolerations by default
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - notExists:
+          path: spec.template.spec.tolerations
+  - it: zookeeper.tolerations should set tolerations
+    set:
+      zookeeper:
+        tolerations:
+          - key: "dedicated"
+            operator: "Equal"
+            value: "zookeeper"
+            effect: "NoSchedule"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value:
+            - key: "dedicated"
+              operator: "Equal"
+              value: "zookeeper"
+              effect: "NoSchedule"
+  - it: should use global tolerations when zookeeper.tolerations not set
+    set:
+      tolerations:
+        - key: "global"
+          operator: "Exists"
+          effect: "NoSchedule"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value:
+            - key: "global"
+              operator: "Exists"
+              effect: "NoSchedule"
+  - it: zookeeper.tolerations should override global tolerations
+    set:
+      tolerations:
+        - key: "global"
+          operator: "Exists"
+          effect: "NoSchedule"
+      zookeeper:
+        tolerations:
+          - key: "zk-specific"
+            operator: "Equal"
+            value: "true"
+            effect: "PreferNoSchedule"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value:
+            - key: "zk-specific"
+              operator: "Equal"
+              value: "true"
+              effect: "PreferNoSchedule"
+
+  # StatefulSet Annotations tests
+  - it: should not include StatefulSet annotations by default
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - notExists:
+          path: metadata.annotations
+  - it: zookeeper.annotations should set StatefulSet annotations
+    set:
+      zookeeper:
+        annotations:
+          custom.annotation: "zk-value"
+          another.annotation: "test"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: metadata.annotations["custom.annotation"]
+          value: "zk-value"
+      - equal:
+          path: metadata.annotations["another.annotation"]
+          value: "test"
+  - it: should use global annotations when zookeeper.annotations not set
+    set:
+      annotations:
+        global.annotation: "global-value"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: metadata.annotations["global.annotation"]
+          value: "global-value"
+  - it: zookeeper.annotations should override global annotations
+    set:
+      annotations:
+        global.annotation: "global-value"
+      zookeeper:
+        annotations:
+          zk.annotation: "zk-value"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: metadata.annotations["zk.annotation"]
+          value: "zk-value"
+      - notExists:
+          path: metadata.annotations["global.annotation"]
+
+  # StatefulSet Labels tests
+  - it: should not include StatefulSet labels by default
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - notExists:
+          path: metadata.labels
+  - it: zookeeper.labels should set StatefulSet labels
+    set:
+      zookeeper:
+        labels:
+          custom.label: "zk-value"
+          environment: "test"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: metadata.labels["custom.label"]
+          value: "zk-value"
+      - equal:
+          path: metadata.labels.environment
+          value: "test"
+  - it: should use global labels when zookeeper.labels not set
+    set:
+      labels:
+        global.label: "global-value"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: metadata.labels["global.label"]
+          value: "global-value"
+  - it: zookeeper.labels should override global labels
+    set:
+      labels:
+        global.label: "global-value"
+      zookeeper:
+        labels:
+          zk.label: "zk-value"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: metadata.labels["zk.label"]
+          value: "zk-value"
+      - notExists:
+          path: metadata.labels["global.label"]
+
+  # Pod Annotations tests
+  - it: should include default metrics annotations on pods
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["metrics.dremio.com/scrape"]
+          value: "true"
+      - equal:
+          path: spec.template.metadata.annotations["metrics.dremio.com/port"]
+          value: "7000"
+      - equal:
+          path: spec.template.metadata.annotations["metrics.dremio.com/path"]
+          value: "/metrics"
+  - it: zookeeper.podAnnotations should add custom pod annotations
+    set:
+      zookeeper:
+        podAnnotations:
+          custom.pod.annotation: "zk-pod-value"
+          another.annotation: "test"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["custom.pod.annotation"]
+          value: "zk-pod-value"
+      - equal:
+          path: spec.template.metadata.annotations["another.annotation"]
+          value: "test"
+      # Should still have default metrics annotations
+      - equal:
+          path: spec.template.metadata.annotations["metrics.dremio.com/scrape"]
+          value: "true"
+  - it: should use global podAnnotations when zookeeper.podAnnotations not set
+    set:
+      podAnnotations:
+        global.pod.annotation: "global-pod-value"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["global.pod.annotation"]
+          value: "global-pod-value"
+  - it: zookeeper.podAnnotations should override global podAnnotations
+    set:
+      podAnnotations:
+        global.pod.annotation: "global-pod-value"
+      zookeeper:
+        podAnnotations:
+          zk.pod.annotation: "zk-pod-value"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["zk.pod.annotation"]
+          value: "zk-pod-value"
+      - notExists:
+          path: spec.template.metadata.annotations["global.pod.annotation"]
+
+  # Pod Labels tests
+  - it: should include default app label on pods
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.app
+          value: zk
+  - it: zookeeper.podLabels should add custom pod labels
+    set:
+      zookeeper:
+        podLabels:
+          custom.pod.label: "zk-pod-value"
+          environment: "test"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["custom.pod.label"]
+          value: "zk-pod-value"
+      - equal:
+          path: spec.template.metadata.labels.environment
+          value: "test"
+      # Should still have default app label
+      - equal:
+          path: spec.template.metadata.labels.app
+          value: zk
+  - it: should use global podLabels when zookeeper.podLabels not set
+    set:
+      podLabels:
+        global.pod.label: "global-pod-value"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["global.pod.label"]
+          value: "global-pod-value"
+  - it: zookeeper.podLabels should override global podLabels
+    set:
+      podLabels:
+        global.pod.label: "global-pod-value"
+      zookeeper:
+        podLabels:
+          zk.pod.label: "zk-pod-value"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["zk.pod.label"]
+          value: "zk-pod-value"
+      - notExists:
+          path: spec.template.metadata.labels["global.pod.label"]
+
+  # Service Account tests
+  - it: should include default serviceAccountName
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: "zookeeper"
+  - it: zookeeper.serviceAccount should set custom serviceAccountName
+    set:
+      zookeeper:
+        serviceAccount: "custom-zk-sa"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: "custom-zk-sa"
+  - it: should not include serviceAccountName when zookeeper.serviceAccount is empty
+    set:
+      zookeeper:
+        serviceAccount: ""
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - notExists:
+          path: spec.template.spec.serviceAccountName
+
+  # Memory allocation tests
+  - it: should set JVMFLAGS with default memory allocation
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.containers[0].env[?(@.name=="JVMFLAGS")]
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="JVMFLAGS")].value
+          pattern: "-Xmx1024m"
+
+  - it: should set JVMFLAGS with custom memory allocation
+    set:
+      zookeeper:
+        resources:
+          requests:
+            memory: "2Gi"
+          limits:
+            memory: "4Gi"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.containers[0].env[?(@.name=="JVMFLAGS")]
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="JVMFLAGS")].value
+          pattern: "-Xmx2048m"
+
+  - it: should include logback configuration in JVMFLAGS
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.containers[0].env[?(@.name=="JVMFLAGS")]
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="JVMFLAGS")].value
+          pattern: "-Dlogback.configurationFile=/conf/logback.xml"
+
+  # Environment variables tests
+  - it: should include required ZooKeeper environment variables
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_STANDALONE_ENABLED
+            value: "false"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_4LW_COMMANDS_WHITELIST
+            value: "ruok"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_ADMINSERVER_ENABLED
+            value: "false"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_AUTOPURGE_PURGEINTERVAL
+            value: "12"
+
+  # Affinity tests
+  - it: should include pod anti-affinity by default
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - exists:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution
+      - equal:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          value: "kubernetes.io/hostname"
+      - equal:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchExpressions[0].key
+          value: "app"
+      - equal:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchExpressions[0].operator
+          value: "In"
+      - contains:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchExpressions[0].values
+          content: "zk"
+
+  # Storage tests
+  - it: should create persistent volume claims
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - exists:
+          path: spec.volumeClaimTemplates
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: datadir
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.accessModes[0]
+          value: ReadWriteOnce
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 10Gi
+
+  - it: should set custom storage size
+    set:
+      zookeeper:
+        volumeSize: 50Gi
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 50Gi
+
+  - it: should set storage class when specified
+    set:
+      zookeeper:
+        storageClass: "fast-ssd"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: "fast-ssd"
+
+  - it: should use global storage class when zookeeper.storageClass not set
+    set:
+      storageClass: "global-storage"
+    documentSelector:
+      path: metadata.name
+      value: zk
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: "global-storage"

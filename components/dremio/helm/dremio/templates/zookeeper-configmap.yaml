@@ -1,0 +1,28 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zookeeper-config
+  labels:
+    app: zk
+data:
+  logback.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <configuration>
+
+      <!-- Reduce spam from health check commands like "Processing ruok command from IP" -->
+      <logger name="org.apache.zookeeper.server.NIOServerCnxn" level="WARN"/>
+
+      <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+          <pattern>%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L] - %m%n</pattern>
+        </encoder>
+      </appender>
+
+      <root level="{{ default "INFO" .Values.zookeeper.logLevel }}">
+        <appender-ref ref="CONSOLE"/>
+      </root>
+    </configuration>

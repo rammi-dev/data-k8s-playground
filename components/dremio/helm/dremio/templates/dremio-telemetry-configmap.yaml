@@ -1,0 +1,14 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+{{- if $.Values.telemetry.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dremio-telemetry-config
+data:
+  config.yaml: |
+    {{ tpl ($.Files.Get "config/telemetry/config.yaml") . | nindent 4 }}
+---
+{{- end }}

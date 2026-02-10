@@ -1,0 +1,120 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+{{- if $.Values.catalogservices.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dremio.catalogservices.app.name" $ }}
+  {{- include "dremio.catalogservices.annotations" $ | nindent 2 }}
+spec:
+  replicas: {{ .Values.catalogservices.replicas }}
+  selector:
+    matchLabels:
+      app: {{ include "dremio.catalogservices.app.name" $ }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "dremio.catalogservices.app.name" $ }}
+        app-group: dremio
+        diagnostics-collector-role: {{ include "dremio.catalogservices.app.name" $ }}
+        {{- include "dremio.catalogservices.podLabels" $ | nindent 8 }}
+      annotations:
+        metrics.dremio.com/scrape: "true"
+        metrics.dremio.com/port: {{ include "dremio.catalogservices.ports.mgmt" $ | quote }}
+        metrics.dremio.com/path: "/q/metrics"
+        {{- include "dremio.catalogservices.podAnnotations" $ | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.catalogservices.serviceAccount }}
+      {{- include "dremio.catalogservices.priorityClassName" $ | nindent 6 }}
+      {{- include "dremio.catalogservices.nodeSelector" $ | nindent 6 }}
+      {{- include "dremio.catalogservices.tolerations" $ | nindent 6 }}
+      {{- include "dremio.catalog.podSecurityContext" $ | nindent 6 }}
+      initContainers:
+        {{- include "dremio.catalog.copyRunScriptsInitContainer" . | nindent 8 }}
+        {{- include "dremio.mongodb.waitForMongoInitContainer" . | nindent 8 }}
+        {{- include "dremio.catalogservices.extraInitContainers" . | nindent 8 }}
+      containers:
+        - name: {{ include "dremio.catalogservices.app.name" $ }}
+          image: {{ $.Values.catalogservices.image.repository }}:{{ $.Values.catalogservices.image.tag }}
+          imagePullPolicy: {{ $.Values.catalogservices.image.pullPolicy }}
+          {{- include "dremio.catalog.containerSecurityContext" $ | nindent 10 }}
+          resources:
+            {{- .Values.catalogservices.resources | toYaml | nindent 12 }}
+          ports:
+            - name: catalog-grpc
+              containerPort: {{ include "dremio.catalogservices.ports.grpc" $ }}
+            - name: catalog-mgmt
+              containerPort: {{ include "dremio.catalogservices.ports.mgmt" $ }}
+          volumeMounts:
+            - name: run-scripts
+              mountPath: /opt/jboss/container/java/run
+            - name: temp-dir
+              mountPath: /tmp
+              readOnly: false
+            {{- if .Values.catalogservices.extraVolumeMounts }}
+            {{ tpl (toYaml .Values.catalogservices.extraVolumeMounts) . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /q/health/live
+              port: catalog-mgmt
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 5
+            timeoutSeconds: 10
+            terminationGracePeriodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /q/health/ready
+              port: catalog-mgmt
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 5
+            timeoutSeconds: 10
+          env:
+            - name: "services.nats.service-name"
+              value: "{{ include "dremio.nats.serviceName" $ }}"
+            - name: "services.nats.service-port"
+              value: "{{ include "dremio.nats.servicePort" $ }}"
+            - name: "services.dremio.catalog.port"
+              value: "{{ include "dremio.catalog.ports.http.internal" $ }}"
+            - name: "services.dremio.catalog.uri"
+              value: {{ include "dremio.catalog.app.name" $ }}
+            - name: "quarkus.grpc.server.port"
+              value: "{{ include "dremio.catalogservices.ports.grpc" $ }}"
+            - name: "quarkus.management.port"
+              value: "{{ include "dremio.catalogservices.ports.mgmt" $ }}"
+            - name: "quarkus.mongodb.connection-string"
+              value: "{{ include "dremio.mongodb.connectionString" $ }}"
+            - name: "quarkus.log.console.level"
+              value: INFO
+            - name: "quarkus.log.file.level"
+              value: INFO
+            - name: "quarkus.mongodb.credentials.username"
+              value: "{{ include "dremio.mongodb.user" $ }}"
+            - name: "quarkus.mongodb.database"
+              value: "{{ include "dremio.mongodb.db" $ }}"
+            - name: "quarkus.mongodb.credentials.password"
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ include "dremio.mongodb.userSecret" $ }}"
+                  key: "{{ include "dremio.mongodb.user" $ }}"
+            {{- include "dremio.catalogservices.extraStartParams" $ | nindent 12 }}
+            {{- if .Values.catalogservices.extraEnvs }}
+            {{- tpl (toYaml .Values.catalogservices.extraEnvs) . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: run-scripts
+          emptyDir: {}
+        - name: temp-dir
+          emptyDir: {}
+        {{- if .Values.catalogservices.extraVolumes }}
+        {{ tpl (toYaml .Values.catalogservices.extraVolumes) . | nindent 8 }}
+        {{- end }}
+{{- end -}}

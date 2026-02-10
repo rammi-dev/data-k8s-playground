@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+
+    Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+
+-->
+<configuration>
+
+  <!-- The following appender is only available if dremio.log.path is defined -->
+  <if condition='isDefined("dremio.log.path")'>
+    <then>
+      <appender name="access-text" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${dremio.log.path}/access.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+          <fileNamePattern>${dremio.log.path}/archive/access.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+          <maxHistory>30</maxHistory>
+          <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+            <maxFileSize>100MB</maxFileSize>
+          </timeBasedFileNamingAndTriggeringPolicy>
+        </rollingPolicy>
+
+        <encoder>
+          <pattern>combined</pattern>
+        </encoder>
+      </appender>
+
+      <appender-ref ref="access-text" />
+    </then>
+    <else>
+      <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+          <pattern>combined</pattern>
+        </encoder>
+      </appender>
+
+      <appender-ref ref="console"/>
+    </else>
+  </if>
+</configuration>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+
+    Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+
+-->
+<configuration>
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%msg%n%ex{0}%n</pattern>
+    </encoder>
+  </appender>
+
+
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+      <level>${dremio.admin.log.verbosity:-OFF}</level>
+    </filter>
+    <encoder>
+      <pattern>%date{ISO8601} [%thread] %-5level %logger{30} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+
+  <if condition='isDefined("dremio.admin.log.path")'>
+    <then>
+      <appender name="ADMINLOG" class="ch.qos.logback.core.FileAppender">
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+          <level>${dremio.admin.log.verbosity:-OFF}</level>
+        </filter>
+        <file>${dremio.admin.log.path}</file>
+        <encoder>
+          <pattern>%date{ISO8601} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+      </appender>
+    </then>
+  </if>
+
+  <logger name="admin" level="INFO" additivity="true">
+    <appender-ref ref="STDOUT"/>
+  </logger>
+
+  <root>
+    <level value="${dremio.admin.log.verbosity:-OFF}"/>
+    <if condition='isDefined("dremio.admin.log.path")'>
+      <then>
+        <appender-ref ref="ADMINLOG"/>
+      </then>
+      <else>
+        <appender-ref ref="CONSOLE"/>
+      </else>
+    </if>
+  </root>
+
+</configuration>

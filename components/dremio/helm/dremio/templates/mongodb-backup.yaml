@@ -1,0 +1,30 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+{{- if .Values.mongodb.backup.enabled }}
+{{- $secretAvailable := include "dremio.mongodb.backup.storage.secretAvailable" . }}
+{{- if $secretAvailable }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "dremio.mongodb.backup.storage.secretName" . }}
+  namespace: {{ .Release.Namespace }}
+  {{- with .Values.mongodb.backup.storageSecretAnnotations }}
+  annotations:
+    {{ toYaml . | nindent 4 }}
+  {{- end }}
+type: Opaque
+data:
+  {{- if eq .Values.distStorage.type "aws" }}
+  AWS_ACCESS_KEY_ID: {{ .Values.distStorage.aws.credentials.accessKey | b64enc | quote }}
+  AWS_SECRET_ACCESS_KEY: {{ .Values.distStorage.aws.credentials.secret | b64enc | quote }}
+  {{- else if eq .Values.distStorage.type "gcp" }}
+  GCS_CLIENT_EMAIL: {{ .Values.distStorage.gcp.credentials.clientEmail | b64enc | quote }}
+  GCS_PRIVATE_KEY: {{ .Values.distStorage.gcp.credentials.privateKey | replace "\\n" "\n" | b64enc | quote }}
+  {{- else if eq .Values.distStorage.type "azureStorage" }}
+  AZURE_STORAGE_ACCOUNT_NAME: {{ .Values.distStorage.azureStorage.accountName | b64enc | quote }}
+  AZURE_STORAGE_ACCOUNT_KEY: {{ .Values.distStorage.azureStorage.credentials.accessKey | b64enc | quote }}
+  {{- end }}
+{{- end }}
+{{- end }}

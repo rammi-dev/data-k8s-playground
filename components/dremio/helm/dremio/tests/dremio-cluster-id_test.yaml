@@ -1,0 +1,327 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+suite: Dremio EE Helm Chart.Cluster ID Tests
+templates:
+  - dremio-cluster-id.yaml
+set:
+  distStorage:
+    type: gcp
+    gcp:
+      bucketName: test-bucket
+      authentication: auto
+      credentials:
+        clientEmail: test@example.com
+        privateKey: test-private-key
+tests:
+  - it: should create ConfigMap, ServiceAccount, Role, RoleBinding, and Job
+    asserts:
+      - hasDocuments:
+          count: 5
+      - isKind:
+          of: ConfigMap
+        documentIndex: 0
+      - isKind:
+          of: ServiceAccount
+        documentIndex: 1
+      - isKind:
+          of: Role
+        documentIndex: 2
+      - isKind:
+          of: RoleBinding
+        documentIndex: 3
+      - isKind:
+          of: Job
+        documentIndex: 4
+  - it: should not include imagePullSecrets by default
+    documentIndex: 1
+    asserts:
+      - notExists:
+          path: imagePullSecrets
+  - it: should include imagePullSecrets
+    documentIndex: 1
+    set:
+      imagePullSecrets:
+        - test-0
+        - test-1
+    asserts:
+      - equal:
+          path: imagePullSecrets[0].name
+          value: test-0
+      - equal:
+          path: imagePullSecrets[1].name
+          value: test-1
+  - it: should include trial secret name in pull secrets if dremio.trialImagePullCredentials is set
+    documentIndex: 1
+    set:
+      dremio.trialImagePullCredentials: test-credentials
+    asserts:
+      - equal:
+          path: imagePullSecrets[0].name
+          value: dremio-trial-image-pull-credentials
+  - it: should include imagePullSecrets in addition to the trial secret name in pull secrets
+    documentIndex: 1
+    set:
+      imagePullSecrets:
+        - test-0
+        - test-1
+      dremio.trialImagePullCredentials: test-credentials
+    asserts:
+      - equal:
+          path: imagePullSecrets[0].name
+          value: test-0
+      - equal:
+          path: imagePullSecrets[1].name
+          value: test-1
+      - equal:
+          path: imagePullSecrets[2].name
+          value: dremio-trial-image-pull-credentials
+  - it: should not include annotations by default
+    documentIndex: 1
+    asserts:
+      - notExists:
+          path: metadata.annotations
+  - it: should include serviceAccountAnnotations when configured
+    documentIndex: 1
+    set:
+      telemetry:
+        clusterId:
+          serviceAccountAnnotations:
+            eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/my-role"
+            example.com/custom-annotation: "custom-value"
+    asserts:
+      - equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: "arn:aws:iam::123456789012:role/my-role"
+      - equal:
+          path: metadata.annotations["example.com/custom-annotation"]
+          value: "custom-value"
+  - it: should include single serviceAccountAnnotation when configured
+    documentIndex: 1
+    set:
+      telemetry:
+        clusterId:
+          serviceAccountAnnotations:
+            eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/my-role"
+    asserts:
+      - equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: "arn:aws:iam::123456789012:role/my-role"
+  - it: should not include annotations when serviceAccountAnnotations is empty
+    documentIndex: 1
+    set:
+      telemetry:
+        clusterId:
+          serviceAccountAnnotations: {}
+    asserts:
+      - notExists:
+          path: metadata.annotations
+  - it: should use correct service account name
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: metadata.name
+          value: dremio-cluster-id
+  - it: should use correct ConfigMap name
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.name
+          value: dremio-cluster-id
+  - it: should use correct Role name
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: metadata.name
+          value: dremio-cluster-id
+  - it: should use correct RoleBinding name
+    documentIndex: 3
+    asserts:
+      - equal:
+          path: metadata.name
+          value: dremio-cluster-id
+  - it: should use correct Job name
+    documentIndex: 4
+    asserts:
+      - equal:
+          path: metadata.name
+          value: dremio-cluster-id
+  - it: should not include priorityClassName by default
+    documentIndex: 4
+    asserts:
+      - notExists:
+          path: spec.template.spec.priorityClassName
+  - it: should include priorityClassName when telemetry.clusterId.priorityClassName is set
+    documentIndex: 4
+    set:
+      telemetry:
+        clusterId:
+          priorityClassName: cluster-id-priority
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: cluster-id-priority
+  - it: should use telemetry.priorityClassName as fallback when telemetry.clusterId.priorityClassName is not set
+    documentIndex: 4
+    set:
+      telemetry:
+        priorityClassName: telemetry-priority
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: telemetry-priority
+  - it: should prefer telemetry.clusterId.priorityClassName over telemetry.priorityClassName
+    documentIndex: 4
+    set:
+      telemetry:
+        priorityClassName: telemetry-priority
+        clusterId:
+          priorityClassName: cluster-id-priority
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: cluster-id-priority
+
+  # podSecurityContext Tests
+  - it: should have default podSecurityContext for cluster-id job
+    documentIndex: 4
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            fsGroup: 999
+            fsGroupChangePolicy: OnRootMismatch
+  - it: should override podSecurityContext for cluster-id job
+    documentIndex: 4
+    set:
+      telemetry:
+        podSecurityContext:
+          fsGroup: 999
+          fsGroupChangePolicy: OnRootMismatch
+          runAsUser: 1001
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            fsGroup: 999
+            fsGroupChangePolicy: OnRootMismatch
+            runAsUser: 1001
+  - it: should use root podSecurityContext for cluster-id job when telemetry's is null
+    documentIndex: 4
+    set:
+      telemetry:
+        podSecurityContext: null
+      podSecurityContext:
+        runAsUser: 1002
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            fsGroup: 999
+            fsGroupChangePolicy: OnRootMismatch
+            runAsUser: 1002
+  - it: should have default podSecurityContext for cluster-id job when both are not set
+    documentIndex: 4
+    set:
+      telemetry:
+        podSecurityContext: null
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            fsGroup: 999
+            fsGroupChangePolicy: OnRootMismatch
+
+  # containerSecurityContext Tests
+  - it: should have default containerSecurityContext for cluster-id job
+    documentIndex: 4
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsGroup: 999
+            runAsNonRoot: true
+            runAsUser: 999
+            seccompProfile:
+              type: RuntimeDefault
+  - it: should override containerSecurityContext for cluster-id job
+    documentIndex: 4
+    set:
+      telemetry:
+        containerSecurityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          privileged: false
+          readOnlyRootFilesystem: false
+          runAsGroup: 999
+          runAsNonRoot: true
+          runAsUser: 2001
+          seccompProfile:
+            type: RuntimeDefault
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsGroup: 999
+            runAsNonRoot: true
+            runAsUser: 2001
+            seccompProfile:
+              type: RuntimeDefault
+  - it: should use root containerSecurityContext for cluster-id job when telemetry's is null
+    documentIndex: 4
+    set:
+      telemetry:
+        containerSecurityContext: null
+      containerSecurityContext:
+        runAsUser: 2002
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsGroup: 999
+            runAsNonRoot: true
+            runAsUser: 2002
+            seccompProfile:
+              type: RuntimeDefault
+  - it: should have default containerSecurityContext for cluster-id job when both are null
+    documentIndex: 4
+    set:
+      telemetry:
+        containerSecurityContext: null
+      containerSecurityContext: null
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsGroup: 999
+            runAsNonRoot: true
+            runAsUser: 999
+            seccompProfile:
+              type: RuntimeDefault

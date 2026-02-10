@@ -1,0 +1,424 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+suite: Dremio EE Helm Chart.Config MapTests
+templates:
+  - dremio-configmap.yaml
+set:
+  distStorage:
+    type: gcp
+    gcp:
+      bucketName: test
+      authentication: auto
+      credentials:
+        clientEmail: test@example.com
+        privateKey: test-private-key
+tests:
+  - it: "trustStore should be disabled by default"
+    documentSelector:
+      path: metadata.name
+      value: dremio-config
+    asserts:
+      - notMatchRegex:
+          path: data["dremio.conf"]
+          pattern: trustStore*
+  - it: "dremio.conf should be updated when trustStore is enabled"
+    set:
+      dremio:
+        advancedConfigs:
+          trustStore:
+            enabled: true
+            password: "test-trust-store-password"
+            binaryData: "dGVzdC10cnVzdHN0b3JlLWRhdGE="  # base64 of "test-truststore-data"
+    documentSelector:
+      path: metadata.name
+      value: dremio-config
+    asserts:
+      - matchRegex:
+          path: data["dremio.conf"]
+          pattern: trustStore*
+      - matchRegex:
+          path: data["dremio.conf"]
+          pattern: test-trust-store-password*
+      - matchRegex:
+          path: data["dremio.conf"]
+          pattern: /opt/dremio/conf/truststore.jks
+  - it: "trustStore file should be added to ConfigMap binaryData when enabled"
+    set:
+      dremio:
+        advancedConfigs:
+          trustStore:
+            enabled: true
+            password: "changeit"
+            binaryData: "dGVzdC10cnVzdHN0b3JlLWRhdGE="
+    documentSelector:
+      path: metadata.name
+      value: dremio-config
+    asserts:
+      - equal:
+          path: binaryData["truststore.jks"]
+          value: "dGVzdC10cnVzdHN0b3JlLWRhdGE="
+  - it: "should fail when trustStore conflicts with configBinaries"
+    set:
+      dremio:
+        configBinaries:
+          truststore.jks: "Y29uZmxpY3RpbmctZGF0YQ=="
+        advancedConfigs:
+          trustStore:
+            enabled: true
+            password: "changeit"
+            binaryData: "dGVzdC10cnVzdHN0b3JlLWRhdGE="
+    asserts:
+      - failedTemplate:
+          errorMessage: "Conflict detected: truststore.jks already exists in dremio.configBinaries"
+  - it: "should include custom config file from dremio.configFiles"
+    set:
+      dremio:
+        configFiles:
+          custom-config.conf: |
+            custom.property1=value1
+            custom.property2=value2
+    documentSelector:
+      path: metadata.name
+      value: dremio-config
+    asserts:
+      - isNotEmpty:
+          path: data["custom-config.conf"]
+      - matchRegex:
+          path: data["custom-config.conf"]
+          pattern: custom\.property1=value1
+      - matchRegex:
+          path: data["custom-config.conf"]
+          pattern: custom\.property2=value2
+  - it: "should override default config files with dremio.configFiles"
+    set:
+      dremio:
+        configFiles:
+          logback.xml: |
+            <?xml version="1.0" encoding="UTF-8" ?>
+            <configuration>
+              <appender name="custom" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                <file>/opt/dremio/data/logs/custom.log</file>
+              </appender>
+              <root level="INFO">
+                <appender-ref ref="custom" />
+              </root>
+            </configuration>
+    documentSelector:
+      path: metadata.name
+      value: dremio-config
+    asserts:
+      - isNotEmpty:
+          path: data["logback.xml"]
+      - matchRegex:
+          path: data["logback.xml"]
+          pattern: appender name="custom"
+      - matchRegex:
+          path: data["logback.xml"]
+          pattern: custom\.log
+  - it: "should handle binary configs in dremio.configBinaries (user provides base64)"
+    set:
+      dremio:
+        configBinaries:
+          # User provides base64-encoded value (no template encoding)
+          keystore.jks: "YmluYXJ5LWNvbnRlbnQ="
+    documentSelector:
+      path: metadata.name
+      value: dremio-config
+    asserts:
+      - equal:
+          path: binaryData["keystore.jks"]
+          # Value is passed through as-is (no double encoding)
+          value: "YmluYXJ5LWNvbnRlbnQ="
+  - it: "should handle both configFiles and configBinaries without conflicts"
+    set:
+      dremio:
+        configFiles:
+          text-config.properties: |
+            property1=value1
+            property2=value2
+        configBinaries:
+          # User provides base64-encoded content
+          binary-file.jks: "YmluYXJ5IGRhdGEgaGVyZQ=="
+    documentSelector:
+      path: metadata.name
+      value: dremio-config
+    asserts:
+      - isNotEmpty:
+          path: data["text-config.properties"]
+      - equal:
+          path: binaryData["binary-file.jks"]
+          # "binary data here" after b64enc becomes "YmluYXJ5IGRhdGEgaGVyZQ=="
+          value: "YmluYXJ5IGRhdGEgaGVyZQ=="
+  - it: "prevent conflicting files being added to config map"
+    set:
+      dremio:
+        configFiles:
+          conflicting-file.conf: |
+            foo=true
+        configBinaries:
+          conflicting-file.conf: |
+            bar=true
+    asserts:
+      - failedTemplate:
+          errorMessage: "Conflict detected for key conflicting-file.conf between config files and dremio.configBinaries, you can have only one"
+  # Engine override tests for configuration
+  - it: "should apply custom config files to all engines"
+    set:
+      dremio:
+        configFiles:
+            logback.xml: |
+              <?xml version="1.0" encoding="UTF-8" ?>
+                <configuration>
+                  <appender name="ENGINE_CUSTOM" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                    <file>/opt/dremio/data/logs/engine-custom.log</file>
+                  </appender>
+                <root level="DEBUG">
+                      <appender-ref ref="ENGINE_CUSTOM" />
+                </root>
+                </configuration>
+      executor:
+        engines: ["nonoverride", "custom"]
+        engineOverride:
+          custom:
+            resources:
+              requests:
+                cpu: 1000m
+                memory: 2Gi
+              limits:
+                cpu: 2000m
+                memory: 4Gi
+    asserts:
+      - isKind:
+          of: ConfigMap
+      # Verify that the custom engine gets its specific logback.xml
+      - documentIndex: 0 # First is dremio-config, second is dremio-hive2-config, third is dremio-hive3-config, fourth is dremio-config-custom
+        equal:
+          path: metadata.name
+          value: dremio-config
+      - documentIndex: 0
+        isNotEmpty:
+          path: data["logback.xml"]
+      - documentIndex: 0
+        matchRegex:
+          path: data["logback.xml"]
+          pattern: appender name="ENGINE_CUSTOM"
+      - documentIndex: 0
+        matchRegex:
+          path: data["logback.xml"]
+          pattern: engine-custom\.log
+      - documentIndex: 0
+        matchRegex:
+          path: data["logback.xml"]
+          pattern: level="DEBUG"
+      # Verify that the default engine gets its specific logback.xml
+      - documentIndex: 3
+        equal:
+          path: metadata.name
+          value: dremio-config-custom
+      - documentIndex: 3
+        isNotEmpty:
+          path: data["logback.xml"]
+      - documentIndex: 3
+        matchRegex:
+          path: data["logback.xml"]
+          pattern: appender name="ENGINE_CUSTOM"
+      - documentIndex: 3
+        matchRegex:
+          path: data["logback.xml"]
+          pattern: engine-custom\.log
+      - documentIndex: 3
+        matchRegex:
+          path: data["logback.xml"]
+          pattern: level="DEBUG"
+
+  # CloudCache configuration tests
+  - it: should include cloudCache configuration by default (no explicit enabled setting)
+    template: dremio-configmap.yaml
+    asserts:
+      # Default configmap should include cloudCache config
+      - documentIndex: 0
+        matchRegex:
+          path: data["dremio.conf"]
+          pattern: "executor:\\s*\\{[\\s\\S]*cache:\\s*\\{"
+      - documentIndex: 0
+        matchRegex:
+          path: data["dremio.conf"]
+          pattern: 'path\.db:\s*"/opt/dremio/cloudcache/c0"'
+      - documentIndex: 0
+        matchRegex:
+          path: data["dremio.conf"]
+          pattern: 'path\.fs:\s*\["/opt/dremio/cloudcache/c0"\]'
+
+  - it: should allow disabling cloudCache per engine
+    template: dremio-configmap.yaml
+    set:
+      executor:
+        engines: ["default", "no-cache"]
+        engineOverride:
+          no-cache:
+            cloudCache:
+              enabled: false
+    asserts:
+      # Default engine config should have cloudCache
+      - documentIndex: 0
+        matchRegex:
+          path: data["dremio.conf"]
+          pattern: "executor:\\s*\\{[\\s\\S]*cache:\\s*\\{"
+      # Engine-specific config (dremio-config-no-cache) is at index 3
+      # Note: Currently engine-specific configs inherit the base dremio.conf which includes cloudCache
+      # This test verifies the engine-specific ConfigMap exists
+      - documentIndex: 3
+        equal:
+          path: metadata.name
+          value: dremio-config-no-cache
+
+  # Hive2 ConfigMap Tests
+  - it: "should create a Hive2 config map by default"
+    documentSelector:
+      path: metadata.name
+      value: dremio-hive2-config
+    asserts:
+      - exists:
+          path: metadata
+      - equal:
+          path: kind
+          value: ConfigMap
+      - exists:
+          path: data
+
+  - it: "should include custom Hive2 config files from dremio.hive2ConfigFiles"
+    set:
+      dremio:
+        hive2ConfigFiles:
+          hive-site.xml: |
+            <?xml version="1.0" encoding="UTF-8"?>
+            <configuration>
+              <property>
+                <name>hive.metastore.uris</name>
+                <value>thrift://custom-hive2-metastore:9083</value>
+              </property>
+              <property>
+                <name>custom.property</name>
+                <value>custom-value</value>
+              </property>
+            </configuration>
+    documentSelector:
+      path: metadata.name
+      value: dremio-hive2-config
+    asserts:
+      - isNotEmpty:
+          path: data["hive-site.xml"]
+      - matchRegex:
+          path: data["hive-site.xml"]
+          pattern: custom-hive2-metastore
+      - matchRegex:
+          path: data["hive-site.xml"]
+          pattern: custom.property
+
+  # Hive3 ConfigMap Tests
+  - it: "should create a Hive3 config map by default"
+    documentSelector:
+      path: metadata.name
+      value: dremio-hive3-config
+    asserts:
+      - exists:
+          path: metadata
+      - equal:
+          path: kind
+          value: ConfigMap
+      - exists:
+          path: data
+
+  - it: "should include custom Hive3 config files from dremio.hive3ConfigFiles"
+    set:
+      dremio:
+        hive3ConfigFiles:
+          hive-site.xml: |
+            <?xml version="1.0" encoding="UTF-8"?>
+            <configuration>
+              <property>
+                <name>hive.metastore.uris</name>
+                <value>thrift://custom-hive3-metastore:9083</value>
+              </property>
+              <property>
+                <name>custom.property</name>
+                <value>custom-value</value>
+              </property>
+            </configuration>
+    documentSelector:
+      path: metadata.name
+      value: dremio-hive3-config
+    asserts:
+      - isNotEmpty:
+          path: data["hive-site.xml"]
+      - matchRegex:
+          path: data["hive-site.xml"]
+          pattern: custom-hive3-metastore
+      - matchRegex:
+          path: data["hive-site.xml"]
+          pattern: custom.property
+  - it: "should allow for multiple files in Hive2 config"
+    set:
+      dremio:
+        hive2ConfigFiles:
+          hive-site.xml: |
+            <?xml version="1.0" encoding="UTF-8"?>
+            <configuration>
+              <property>
+                <name>hive.metastore.uris</name>
+                <value>thrift://custom-hive2-metastore:9083</value>
+              </property>
+            </configuration>
+          core-site.xml: |
+            <?xml version="1.0" encoding="UTF-8"?>
+            <configuration>
+              <property>
+                <name>fs.defaultFS</name>
+                <value>hdfs://custom-namenode:8020</value>
+              </property>
+            </configuration>
+    documentSelector:
+      path: metadata.name
+      value: dremio-hive2-config
+    asserts:
+      - isNotEmpty:
+          path: data["hive-site.xml"]
+      - isNotEmpty:
+          path: data["core-site.xml"]
+      - matchRegex:
+          path: data["core-site.xml"]
+          pattern: fs\.defaultFS
+
+  - it: "should allow for multiple files in Hive3 config"
+    set:
+      dremio:
+        hive3ConfigFiles:
+          hive-site.xml: |
+            <?xml version="1.0" encoding="UTF-8"?>
+            <configuration>
+              <property>
+                <name>hive.metastore.uris</name>
+                <value>thrift://custom-hive3-metastore:9083</value>
+              </property>
+            </configuration>
+          core-site.xml: |
+            <?xml version="1.0" encoding="UTF-8"?>
+            <configuration>
+              <property>
+                <name>fs.defaultFS</name>
+                <value>hdfs://custom-namenode:8020</value>
+              </property>
+            </configuration>
+    documentSelector:
+      path: metadata.name
+      value: dremio-hive3-config
+    asserts:
+      - isNotEmpty:
+          path: data["hive-site.xml"]
+      - isNotEmpty:
+          path: data["core-site.xml"]
+      - matchRegex:
+          path: data["core-site.xml"]
+          pattern: fs\.defaultFS

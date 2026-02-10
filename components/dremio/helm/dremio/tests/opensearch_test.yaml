@@ -1,0 +1,533 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+suite: Dremio EE Helm Chart.OpenSearch Tests
+templates:
+  - opensearch.yaml
+set:
+  opensearch.enabled: true
+tests:
+  - it: should use custom pre-install job image
+    set:
+      opensearch.preInstallJob:
+        image:
+          repository: custom-image
+          tag: custom-tag
+    documentSelector:
+      path: metadata.name
+      value: opensearch-pre-install
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: custom-image:custom-tag
+  - it: should set nodeSelector on oidcProxy
+    set:
+      opensearch.oidcProxy.nodeSelector: { node: "big" }
+    documentSelector:
+      path: spec.template.spec.containers[0].name
+      value: oidc-proxy
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value: { node: "big" }
+  - it: should set tolerations on oidcProxy
+    set:
+      opensearch.oidcProxy.tolerations: [{key: "oidcProxy", operator: "Equal", value: "value1", effect: "NoSchedule" }]
+    documentSelector:
+      path: spec.template.spec.containers[0].name
+      value: oidc-proxy
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value: [{key: "oidcProxy", operator: "Equal", value: "value1", effect: "NoSchedule" }]
+  - it: should set nodeSelector on delete-opensearch-cluster hook
+    set:
+      opensearch.preInstallJob.nodeSelector: { node: "big" }
+    documentSelector:
+      path: metadata.name
+      value: delete-opensearchcluster
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value: { node: "big" }
+  - it: should set nodeSelector on cert-rotation
+    set:
+      opensearch.preInstallJob.nodeSelector: { node: "big" }
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cert-rotation
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.nodeSelector
+          value: { node: "big" }
+  - it: should set nodeSelector on opensearch pre install job
+    set:
+      opensearch.preInstallJob.nodeSelector: { node: "big" }
+    documentSelector:
+      path: metadata.name
+      value: opensearch-pre-install
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value: { node: "big" }
+  - it: should set tolerations on opensearch pre install job
+    set:
+      opensearch.preInstallJob.tolerations: [{key: "preInstall", operator: "Equal", value: "value1", effect: "NoSchedule" }]
+    documentSelector:
+      path: metadata.name
+      value: opensearch-pre-install
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value: [{key: "preInstall", operator: "Equal", value: "value1", effect: "NoSchedule" }]
+  - it: should set custom resources on oidc-proxy
+    set:
+      opensearch.oidcProxy.resources: { requests: { cpu: "1000m", memory: "1024Mi"}, limits: { cpu: "2000m", memory: "2048Mi" }}
+    documentSelector:
+      path: spec.template.spec.containers[0].name
+      value: oidc-proxy
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources
+          value: { requests: { cpu: "1000m", memory: "1024Mi"}, limits: { cpu: "2000m", memory: "2048Mi" }}
+  - it: should set  pod labels oidc-proxy
+    documentSelector:
+      path: spec.template.spec.containers[0].name
+      value: oidc-proxy
+    set:
+      opensearch.oidcProxy.podLabels: {"test": test}
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.test
+          value: test
+  - it: should have required pod anti-affinity rule to prevent pods on same node
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    asserts:
+      - equal:
+          path: spec.nodePools[0].affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchLabels["opensearch.cluster.name"]
+          value: "opensearch-cluster"
+      - equal:
+          path: spec.nodePools[0].affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          value: "kubernetes.io/hostname"
+  - it: should set opensearch storage class when specified
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    set:
+      opensearch.storageClass: opensearch-storage-class
+    asserts:
+      - equal:
+          path: spec.nodePools[0].persistence.pvc.storageClass
+          value: opensearch-storage-class
+  - it: should use global storage class when opensearch storage class is not specified
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    set:
+      storageClass: global-storage-class
+    asserts:
+      - equal:
+          path: spec.nodePools[0].persistence.pvc.storageClass
+          value: global-storage-class
+  - it: should prioritize opensearch storage class over global storage class
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    set:
+      storageClass: global-storage-class
+      opensearch.storageClass: opensearch-storage-class
+    asserts:
+      - equal:
+          path: spec.nodePools[0].persistence.pvc.storageClass
+          value: opensearch-storage-class
+  - it: should use default busyBox image for initHelper
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    asserts:
+      - equal:
+          path: spec.initHelper.image
+          value: quay.io/dremio/busybox:1.37.0-glibc
+      - equal:
+          path: spec.initHelper.imagePullPolicy
+          value: IfNotPresent
+  - it: should use custom busyBox image for initHelper
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    set:
+      busyBox:
+        image:
+          repository: custom-busybox
+          tag: custom-tag
+          pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.initHelper.image
+          value: custom-busybox:custom-tag
+      - equal:
+          path: spec.initHelper.imagePullPolicy
+          value: Always
+  - it: should use default initResources for initHelper
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    asserts:
+      - equal:
+          path: spec.initHelper.resources.requests.cpu
+          value: 10m
+      - equal:
+          path: spec.initHelper.resources.requests.memory
+          value: 10Mi
+      - equal:
+          path: spec.initHelper.resources.limits.cpu
+          value: 2000m
+      - equal:
+          path: spec.initHelper.resources.limits.memory
+          value: 512Mi
+  - it: should use custom initResources for initHelper
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    set:
+      initResources:
+        requests:
+          cpu: 100m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+    asserts:
+      - equal:
+          path: spec.initHelper.resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.initHelper.resources.requests.memory
+          value: 64Mi
+      - equal:
+          path: spec.initHelper.resources.limits.cpu
+          value: 200m
+      - equal:
+          path: spec.initHelper.resources.limits.memory
+          value: 256Mi
+
+  - it: should set tolerations on delete-opensearchcluster hook from preInstallJob.tolerations
+    set:
+      opensearch.preInstallJob.tolerations:
+        - key: "cleanup"
+          operator: "Equal"
+          value: "delete"
+          effect: "NoSchedule"
+    documentSelector:
+      path: metadata.name
+      value: delete-opensearchcluster
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value:
+            - key: "cleanup"
+              operator: "Equal"
+              value: "delete"
+              effect: "NoSchedule"
+  - it: should fallback to opensearch.tolerations for delete-opensearchcluster when preInstallJob.tolerations not set
+    set:
+      opensearch.tolerations:
+        - key: "opensearch-fallback"
+          operator: "Equal"
+          value: "cleanup"
+          effect: "NoSchedule"
+    documentSelector:
+      path: metadata.name
+      value: delete-opensearchcluster
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value:
+            - key: "opensearch-fallback"
+              operator: "Equal"
+              value: "cleanup"
+              effect: "NoSchedule"
+  - it: should fallback to global tolerations for delete-opensearchcluster when opensearch tolerations not set
+    set:
+      tolerations:
+        - key: "global-fallback"
+          operator: "Equal"
+          value: "cleanup"
+          effect: "NoSchedule"
+    documentSelector:
+      path: metadata.name
+      value: delete-opensearchcluster
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value:
+            - key: "global-fallback"
+              operator: "Equal"
+              value: "cleanup"
+              effect: "NoSchedule"
+  - it: should prioritize preInstallJob.tolerations over opensearch.tolerations for delete-opensearchcluster
+    set:
+      opensearch.preInstallJob.tolerations:
+        - key: "preinstall-priority"
+          operator: "Equal"
+          value: "high"
+          effect: "NoSchedule"
+      opensearch.tolerations:
+        - key: "opensearch-lower"
+          operator: "Equal"
+          value: "low"
+          effect: "NoSchedule"
+    documentSelector:
+      path: metadata.name
+      value: delete-opensearchcluster
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value:
+            - key: "preinstall-priority"
+              operator: "Equal"
+              value: "high"
+              effect: "NoSchedule"
+  - it: should prioritize opensearch.tolerations over global tolerations for delete-opensearchcluster
+    set:
+      opensearch.tolerations:
+        - key: "opensearch-priority"
+          operator: "Equal"
+          value: "medium"
+          effect: "NoSchedule"
+      tolerations:
+        - key: "global-lower"
+          operator: "Equal"
+          value: "low"
+          effect: "NoSchedule"
+    documentSelector:
+      path: metadata.name
+      value: delete-opensearchcluster
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value:
+            - key: "opensearch-priority"
+              operator: "Equal"
+              value: "medium"
+              effect: "NoSchedule"
+  - it: should set bootstrap nodeSelector when specified
+    set:
+      opensearch.bootstrap.nodeSelector: { node: "bootstrap-node" }
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    asserts:
+      - equal:
+          path: spec.bootstrap.nodeSelector
+          value: { node: "bootstrap-node" }
+  - it: should fallback to opensearch.nodeSelector for bootstrap when bootstrap.nodeSelector not set
+    set:
+      opensearch.nodeSelector: { node: "opensearch-node" }
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    asserts:
+      - equal:
+          path: spec.bootstrap.nodeSelector
+          value: { node: "opensearch-node" }
+  - it: should fallback to global nodeSelector for bootstrap when opensearch nodeSelector not set
+    set:
+      nodeSelector: { node: "global-node" }
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    asserts:
+      - equal:
+          path: spec.bootstrap.nodeSelector
+          value: { node: "global-node" }
+  - it: should prioritize bootstrap.nodeSelector over opensearch.nodeSelector
+    set:
+      opensearch.bootstrap.nodeSelector: { node: "bootstrap-node" }
+      opensearch.nodeSelector: { node: "opensearch-node" }
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    asserts:
+      - equal:
+          path: spec.bootstrap.nodeSelector
+          value: { node: "bootstrap-node" }
+  - it: should set bootstrap tolerations when specified
+    set:
+      opensearch.bootstrap.tolerations:
+        - key: "bootstrap-taint"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    asserts:
+      - equal:
+          path: spec.bootstrap.tolerations
+          value:
+            - key: "bootstrap-taint"
+              operator: "Equal"
+              value: "true"
+              effect: "NoSchedule"
+  - it: should fallback to opensearch.tolerations for bootstrap when bootstrap.tolerations not set
+    set:
+      opensearch.tolerations:
+        - key: "opensearch-fallback"
+          operator: "Equal"
+          value: "bootstrap"
+          effect: "NoSchedule"
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    asserts:
+      - equal:
+          path: spec.bootstrap.tolerations
+          value:
+            - key: "opensearch-fallback"
+              operator: "Equal"
+              value: "bootstrap"
+              effect: "NoSchedule"
+  - it: should fallback to global tolerations for bootstrap when opensearch tolerations not set
+    set:
+      tolerations:
+        - key: "global-fallback"
+          operator: "Equal"
+          value: "bootstrap"
+          effect: "NoSchedule"
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    asserts:
+      - equal:
+          path: spec.bootstrap.tolerations
+          value:
+            - key: "global-fallback"
+              operator: "Equal"
+              value: "bootstrap"
+              effect: "NoSchedule"
+  - it: should prioritize bootstrap.tolerations over opensearch.tolerations
+    set:
+      opensearch.bootstrap.tolerations:
+        - key: "bootstrap-priority"
+          operator: "Equal"
+          value: "high"
+          effect: "NoSchedule"
+      opensearch.tolerations:
+        - key: "opensearch-lower"
+          operator: "Equal"
+          value: "low"
+          effect: "NoSchedule"
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    asserts:
+      - equal:
+          path: spec.bootstrap.tolerations
+          value:
+            - key: "bootstrap-priority"
+              operator: "Equal"
+              value: "high"
+              effect: "NoSchedule"
+  - it: should set bootstrap resources when specified
+    set:
+      opensearch.bootstrap.resources:
+        requests:
+          cpu: "3"
+          memory: "6Gi"
+        limits:
+          cpu: "3"
+          memory: "6Gi"
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    asserts:
+      - equal:
+          path: spec.bootstrap.resources.requests.cpu
+          value: "3"
+      - equal:
+          path: spec.bootstrap.resources.requests.memory
+          value: "6Gi"
+      - equal:
+          path: spec.bootstrap.resources.limits.cpu
+          value: "3"
+      - equal:
+          path: spec.bootstrap.resources.limits.memory
+          value: "6Gi"
+  - it: should use default bootstrap resources
+    documentSelector:
+      path: metadata.name
+      value: opensearch-cluster
+    asserts:
+      - equal:
+          path: spec.bootstrap.resources.requests.cpu
+          value: "2"
+      - equal:
+          path: spec.bootstrap.resources.requests.memory
+          value: "4Gi"
+      - equal:
+          path: spec.bootstrap.resources.limits.cpu
+          value: "2"
+      - equal:
+          path: spec.bootstrap.resources.limits.memory
+          value: "4Gi"
+  - it: should handle multiple tolerations for delete-opensearchcluster
+    set:
+      opensearch.preInstallJob.tolerations:
+        - key: "cleanup-taint1"
+          operator: "Equal"
+          value: "delete"
+          effect: "NoSchedule"
+        - key: "cleanup-taint2"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "maintenance"
+          operator: "Equal"
+          value: "true"
+          effect: "PreferNoSchedule"
+    documentSelector:
+      path: metadata.name
+      value: delete-opensearchcluster
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations[0]
+          value:
+            key: "cleanup-taint1"
+            operator: "Equal"
+            value: "delete"
+            effect: "NoSchedule"
+      - equal:
+          path: spec.template.spec.tolerations[1]
+          value:
+            key: "cleanup-taint2"
+            operator: "Exists"
+            effect: "NoExecute"
+            tolerationSeconds: 60
+      - equal:
+          path: spec.template.spec.tolerations[2]
+          value:
+            key: "maintenance"
+            operator: "Equal"
+            value: "true"
+            effect: "PreferNoSchedule"
+  - it: should not set tolerations on delete-opensearchcluster when none are configured
+    documentSelector:
+      path: metadata.name
+      value: delete-opensearchcluster
+    asserts:
+      - notExists:
+          path: spec.template.spec.tolerations
+  - it: should handle empty tolerations array for delete-opensearchcluster
+    set:
+      opensearch.preInstallJob.tolerations: []
+    documentSelector:
+      path: metadata.name
+      value: delete-opensearchcluster
+    asserts:
+      - notExists:
+          path: spec.template.spec.tolerations
+

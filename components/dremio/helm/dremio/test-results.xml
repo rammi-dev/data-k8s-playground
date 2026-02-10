@@ -1,0 +1,845 @@
+<testsuites>
+	<testsuite id="0" tests="13" failures="0" errors="0" package="" time="0.271" name="Dremio EE Helm Chart.Dremio Admin Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Dremio Admin Tests" name="should not include extra volumes and volume mounts by default" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Dremio Admin Tests" name="should include extra volumes and volume mounts when configured" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Dremio Admin Tests" name="should include multiple extra volumes and volume mounts" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Dremio Admin Tests" name="should inherit extraVolumes from root level when coordinator level not set" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Dremio Admin Tests" name="should prioritize coordinator extraVolumes over root level" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Dremio Admin Tests" name="should not include priorityClassName by default" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Dremio Admin Tests" name="coordinator.priorityClassName should set priorityClassName for admin pod" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Dremio Admin Tests" name="should not include priorityClassName when coordinator.priorityClassName is empty" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Dremio Admin Tests" name="should have empty initContainers by default" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Dremio Admin Tests" name="should include coordinator-level extraInitContainers as string template" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Dremio Admin Tests" name="should include root-level extraInitContainers as string template when coordinator not set" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Dremio Admin Tests" name="should prioritize coordinator extraInitContainers over root level" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Dremio Admin Tests" name="should handle multiple extraInitContainers in string template" time="0.019"></testcase>
+	</testsuite>
+	<testsuite id="1" tests="31" failures="0" errors="0" package="" time="0.702" name="Dremio EE Helm Chart.Catalog Server Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="catalog.podAnnotations should append pod annotations" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="pod annotations should apply when set at root level" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should not include nodeSelectors by default" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="catalog.nodeSelector should take priority over nodeSelector" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="nodeSelector should apply when set at root level" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="catalog.tolerations should apply tolerations" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="tolerations should be applied when set at root level" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="metadata.annotations should be empty by default" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="catalog.annotations should set metadata.annotations" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="metadata.annotations should be apply when set at root level" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="catalog.podLabels should apply podLabels" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="podLabels should be applied when set at root level" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should include extra volumes and volume mounts" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should include extra env vars" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should include copy run scripts init container with default values" time="0.030"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should use custom catalog image configuration for copy run scripts init container" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should include default security context for copy run scripts init container" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should use custom security context for copy run scripts init container" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should include extra init containers from catalog level" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should include extra init containers from root level (as string)" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should include extra init containers from catalog level when both are defined" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should include extra start params from catalog level" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should include extra start params from root level" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should include extra start params from catalog level when both are defined" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should not include priorityClassName by default" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="catalog.priorityClassName should set priorityClassName" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should not include priorityClassName when catalog.priorityClassName is empty" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should fail to set location with trailing slash" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should fail to set location with trailing slash from array" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should set base-location catalog config when location is simple string" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Tests" name="should set locations catalog config from array" time="0.027"></testcase>
+	</testsuite>
+	<testsuite id="2" tests="25" failures="0" errors="0" package="" time="0.595" name="Dremio EE Helm Chart.Catalog Server External Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="catalog.podAnnotations should append pod annotations" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="pod annotations should apply when set at root level" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="should not include nodeSelectors by default" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="catalog.externalAccess should take priority" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="catalog.nodeSelector should take priority over nodeSelector" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="nodeSelector should apply when set at root level" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="catalog.externalAccess.tolerations should apply tolerations" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="catalog.tolerations should apply tolerations" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="tolerations should be applied when set at root level" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="metadata.annotations should be empty by default" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="catalog.annotations should set metadata.annotations" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="metadata.annotations should be apply when set at root level" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="catalog.podLabels should apply podLabels" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="podLabels should be applied when set at root level" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="should include extra volumes and volume mounts" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="should include extra env vars" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="should include copy run scripts init container with default values" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="should use custom catalog image configuration for copy run scripts init container" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="should include default security context for copy run scripts init container" time="0.030"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="should include extra init containers from catalog level" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="should include extra init containers from root level (as string)" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="should include extra init containers from catalog level when both are defined" time="0.030"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="should include extra start params from catalog level" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="should include extra start params from root level" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server External Tests" name="should include extra start params from catalog level when both are defined" time="0.023"></testcase>
+	</testsuite>
+	<testsuite id="3" tests="10" failures="0" errors="0" package="" time="0.239" name="Dremio EE Helm Chart.Catalog Server Service Account Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Service Account Tests" name="should not include imagePullSecrets by default" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Service Account Tests" name="should include imagePullSecrets" time="0.029"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Service Account Tests" name="should include trial secret name in pull secrets if dremio.trialImagePullCredentials is set" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Service Account Tests" name="should include imagePullSecrets in addition to the trial secret name in pull secrets" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Service Account Tests" name="should not include annotations by default" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Service Account Tests" name="should include serviceAccountAnnotations when configured" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Service Account Tests" name="should include single serviceAccountAnnotation when configured" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Service Account Tests" name="should not include annotations when serviceAccountAnnotations is empty" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Service Account Tests" name="should use correct service account name" time="0.028"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Server Service Account Tests" name="should use custom service account name when configured" time="0.024"></testcase>
+	</testsuite>
+	<testsuite id="4" tests="26" failures="0" errors="0" package="" time="0.592" name="Dremio EE Helm Chart.Catalog Services Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="catalogservices.podAnnotations should append pod annotations" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="pod annotations should apply when set at root level" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="should not include nodeSelectors by default" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="catalogservices.nodeSelector should take priority over nodeSelector" time="0.036"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="nodeSelector should apply when set at root level" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="catalogservices.tolerations should apply tolerations" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="tolerations should be applied when set at root level" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="metadata.annotations should be empty by default" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="catalogservices.annotations should set metadata.annotations" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="metadata.annotations should be apply when set at root level" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="catalogservices.podLabels should apply podLabels" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="podLabels should be applied when set at root level" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="should include copy run scripts init container with default catalog image values" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="should use custom catalog image configuration for copy run scripts init container" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="should include default security context for copy run scripts init container" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="should include extra volumes and volume mounts" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="should include extra env vars" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="should include extra init containers from catalog level" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="should include extra init containers from root level (as string)" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="should include extra init containers from catalog level when both are defined" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="should include extra start params from catalog level" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="should include extra start params from root level" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="should include extra start params from catalog level when both are defined" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="should not include priorityClassName by default" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="catalogservices.priorityClassName should set priorityClassName" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Tests" name="should not include priorityClassName when catalogservices.priorityClassName is empty" time="0.020"></testcase>
+	</testsuite>
+	<testsuite id="5" tests="10" failures="0" errors="0" package="" time="0.195" name="Dremio EE Helm Chart.Catalog Services Service Account Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Service Account Tests" name="should not include imagePullSecrets by default" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Service Account Tests" name="should include imagePullSecrets" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Service Account Tests" name="should include trial secret name in pull secrets if dremio.trialImagePullCredentials is set" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Service Account Tests" name="should include imagePullSecrets in addition to the trial secret name in pull secrets" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Service Account Tests" name="should not include annotations by default" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Service Account Tests" name="should include serviceAccountAnnotations when configured" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Service Account Tests" name="should include single serviceAccountAnnotation when configured" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Service Account Tests" name="should not include annotations when serviceAccountAnnotations is empty" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Service Account Tests" name="should use correct service account name" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Catalog Services Service Account Tests" name="should use custom service account name when configured" time="0.018"></testcase>
+	</testsuite>
+	<testsuite id="6" tests="26" failures="0" errors="0" package="" time="0.580" name="Dremio EE Helm Chart.Cluster ID Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should create ConfigMap, ServiceAccount, Role, RoleBinding, and Job" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should not include imagePullSecrets by default" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should include imagePullSecrets" time="0.030"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should include trial secret name in pull secrets if dremio.trialImagePullCredentials is set" time="0.028"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should include imagePullSecrets in addition to the trial secret name in pull secrets" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should not include annotations by default" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should include serviceAccountAnnotations when configured" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should include single serviceAccountAnnotation when configured" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should not include annotations when serviceAccountAnnotations is empty" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should use correct service account name" time="0.028"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should use correct ConfigMap name" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should use correct Role name" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should use correct RoleBinding name" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should use correct Job name" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should not include priorityClassName by default" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should include priorityClassName when telemetry.clusterId.priorityClassName is set" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should use telemetry.priorityClassName as fallback when telemetry.clusterId.priorityClassName is not set" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should prefer telemetry.clusterId.priorityClassName over telemetry.priorityClassName" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should have default podSecurityContext for cluster-id job" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should override podSecurityContext for cluster-id job" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should use root podSecurityContext for cluster-id job when telemetry&#39;s is null" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should have default podSecurityContext for cluster-id job when both are not set" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should have default containerSecurityContext for cluster-id job" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should override containerSecurityContext for cluster-id job" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should use root containerSecurityContext for cluster-id job when telemetry&#39;s is null" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Cluster ID Tests" name="should have default containerSecurityContext for cluster-id job when both are null" time="0.019"></testcase>
+	</testsuite>
+	<testsuite id="7" tests="18" failures="0" errors="0" package="" time="0.531" name="Dremio EE Helm Chart.Config MapTests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="trustStore should be disabled by default" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="dremio.conf should be updated when trustStore is enabled" time="0.028"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="trustStore file should be added to ConfigMap binaryData when enabled" time="0.028"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="should fail when trustStore conflicts with configBinaries" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="should include custom config file from dremio.configFiles" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="should override default config files with dremio.configFiles" time="0.029"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="should handle binary configs in dremio.configBinaries (user provides base64)" time="0.029"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="should handle both configFiles and configBinaries without conflicts" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="prevent conflicting files being added to config map" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="should apply custom config files to all engines" time="0.038"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="should include cloudCache configuration by default (no explicit enabled setting)" time="0.030"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="should allow disabling cloudCache per engine" time="0.034"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="should create a Hive2 config map by default" time="0.036"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="should include custom Hive2 config files from dremio.hive2ConfigFiles" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="should create a Hive3 config map by default" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="should include custom Hive3 config files from dremio.hive3ConfigFiles" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="should allow for multiple files in Hive2 config" time="0.028"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Config MapTests" name="should allow for multiple files in Hive3 config" time="0.028"></testcase>
+	</testsuite>
+	<testsuite id="8" tests="11" failures="0" errors="0" package="" time="0.204" name="Dremio EE Helm Chart.Coordinator Service Account Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Service Account Tests" name="should not include imagePullSecrets by default" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Service Account Tests" name="should include imagePullSecrets" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Service Account Tests" name="should include trial secret name in pull secrets if dremio.trialImagePullCredentials is set" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Service Account Tests" name="should include imagePullSecrets in addition to the trail secret name in pull secrets" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Service Account Tests" name="should not include annotations by default" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Service Account Tests" name="should include serviceAccountAnnotations when configured" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Service Account Tests" name="should include single serviceAccountAnnotation when configured" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Service Account Tests" name="should not include annotations when serviceAccountAnnotations is empty" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Service Account Tests" name="should use correct service account name" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Service Account Tests" name="should use custom service account name when configured" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Service Account Tests" name="should be a ServiceAccount" time="0.018"></testcase>
+	</testsuite>
+	<testsuite id="9" tests="58" failures="0" errors="0" package="" time="2.046" name="Dremio EE Helm Chart.Coordinator Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should not include extra environment variables by default" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should include extra environment variables set at the root level in values.yaml" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="environment variables set at coordinator.extraEnvs should take precedence over environment variables set at root level" time="0.034"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="environment variable names cannot begin with &#39;DREMIO_&#39;" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="environment variable names can contain &#39;DREMIO&#39;" time="0.037"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should write logs to file by default" time="0.041"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should write logs to file when global dremio.log.enabled is true" time="0.039"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should not write logs to file when global dremio.log.enabled is false" time="0.039"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should not write logs to file when coordinator.log.enabled is false" time="0.038"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should write logs to file when coordinator.log.enabled is true" time="0.038"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use custom log volume size when specified at coordinator level" time="0.037"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use default storage class when not specified" time="0.038"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use global storage class for log volume" time="0.043"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use dremio logs storage class when specified" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use coordinator logs storage class when specified" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should handle different volume size formats" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should handle large volume sizes" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should not specify storage class when none is configured" time="0.040"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use global storage class for log volume when specified" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use global storage class with different values" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should prioritize dremio logs storage class over global storage class" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use coordinator logs storage class when specified" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should prioritize coordinator logs storage class over all other levels" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should fall back to dremio logs storage class when coordinator is not specified" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should fall back to global storage class when dremio logs is not specified" time="0.030"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should handle null storage class values correctly" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should handle empty string storage class values correctly" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should write logs to file when global writeLogsToFile is explicitly true" time="0.033"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should not write logs to file when global writeLogsToFile is false" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should write logs to file when coordinator writeLogsToFile is true" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should not write logs to file when coordinator writeLogsToFile is false" time="0.034"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should prioritize coordinator writeLogsToFile over global setting (coordinator true, global false)" time="0.040"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should prioritize coordinator writeLogsToFile over global setting (coordinator false, global true)" time="0.040"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should set DREMIO_LOG_TO_CONSOLE to &#34;0&#34; when writeLogsToFile is true" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should set DREMIO_LOG_TO_CONSOLE to &#34;1&#34; when writeLogsToFile is false" time="0.038"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should set DREMIO_LOG_DIR when writeLogsToFile is true" time="0.040"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should not set DREMIO_LOG_DIR when writeLogsToFile is false" time="0.039"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should include log volume mount when writeLogsToFile is true" time="0.040"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should not include log volume mount when writeLogsToFile is false" time="0.037"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should include log volume mount when coordinator writeLogsToFile overrides global false" time="0.039"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should not include log volume mount when coordinator writeLogsToFile overrides global true" time="0.038"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use default init container image" time="0.039"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use custom init container image" time="0.041"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="catalogservices should be excluded when feature is disabled (JVM options excluded)" time="0.039"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="JVM options for catalogservices should be included by default" time="0.036"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use default pod security context when coordinator.podSecurityContext is not set" time="0.033"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use custom pod security context when coordinator.podSecurityContext is set" time="0.036"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use default container security context when coordinator.containerSecurityContext is not set" time="0.038"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use custom container security context when coordinator.containerSecurityContext is set" time="0.042"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use global pod security context when coordinator.podSecurityContext is not set but global podSecurityContext is set" time="0.035"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use global container security context when coordinator.containerSecurityContext is not set but global containerSecurityContext is set" time="0.038"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="coordinator security context should override global security context" time="0.034"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use default container security context for init containers when coordinator.containerSecurityContext is not set" time="0.037"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should use custom container security context for init containers when coordinator.containerSecurityContext is set" time="0.037"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should handle empty coordinator security contexts gracefully" time="0.034"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should not include priorityClassName by default" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="coordinator.priorityClassName should set priorityClassName" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Coordinator Tests" name="should not include priorityClassName when coordinator.priorityClassName is empty" time="0.030"></testcase>
+	</testsuite>
+	<testsuite id="10" tests="8" failures="0" errors="0" package="" time="0.165" name="Dremio EE Helm Chart.Engine Executor Service Account Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Engine Executor Service Account Tests" name="should not include annotations by default" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Executor Service Account Tests" name="should include serviceAccountAnnotations when configured" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Executor Service Account Tests" name="should include single serviceAccountAnnotation when configured" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Executor Service Account Tests" name="should not include annotations when serviceAccountAnnotations is empty" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Executor Service Account Tests" name="should use correct service account name" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Executor Service Account Tests" name="should use custom service account name when configured" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Executor Service Account Tests" name="should have correct labels" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Executor Service Account Tests" name="should be a ServiceAccount" time="0.021"></testcase>
+	</testsuite>
+	<testsuite id="11" tests="12" failures="0" errors="0" package="" time="0.263" name="Dremio EE Helm Chart.Engine Operator Service Account Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Service Account Tests" name="should not include imagePullSecrets by default" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Service Account Tests" name="should include imagePullSecrets" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Service Account Tests" name="should include trial secret name in pull secrets if dremio.trialImagePullCredentials is set" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Service Account Tests" name="should include imagePullSecrets in addition to the trial secret name in pull secrets" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Service Account Tests" name="should not include annotations by default" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Service Account Tests" name="should include serviceAccountAnnotations when configured" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Service Account Tests" name="should include single serviceAccountAnnotation when configured" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Service Account Tests" name="should not include annotations when serviceAccountAnnotations is empty" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Service Account Tests" name="should use correct service account name" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Service Account Tests" name="should use custom service account name when configured" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Service Account Tests" name="should have correct labels" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Service Account Tests" name="should be a ServiceAccount" time="0.024"></testcase>
+	</testsuite>
+	<testsuite id="12" tests="44" failures="0" errors="0" package="" time="0.990" name="Dremio EE Helm Chart.Engine Operator Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="engine.operator.podAnnotations should append pod annotations" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="pod annotations should apply when set at root level" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should not include nodeSelectors by default" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="engine.operator.nodeSelector should take priority over nodeSelector" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="nodeSelector should apply when set at root level" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="engine.operator.tolerations should apply tolerations" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="tolerations should be applied when set at root level" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="metadata.annotations should be empty by default" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="engine.operator.annotations should set metadata.annotations" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="metadata.annotations should be apply when set at root level" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="engine.operator.podLabels should apply podLabels" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="podLabels should be applied when set at root level" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should have default startup probe configuration in executor template" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should have default liveness probe configuration in executor template" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should allow custom startup probe configuration in executor template" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should allow custom liveness probe configuration in executor template" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should configure both startup and liveness probes simultaneously in executor template" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should use correct probe endpoints and ports in executor template" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should not specify storage class for dremio-log-volume when none is configured" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should use engine.executor.volumes.log.pvc.storageClass when specified" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should use engine.executor.volumes.log.size when specified" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should have default podSecurityContext for engine operator" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should override podSecurityContext for engine operator" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should use root podSecurityContext for engine operator when operator&#39;s is null" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should have default podSecurityContext for engine operator when both are not set" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should have default containerSecurityContext for engine operator" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should override containerSecurityContext for engine operator" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should use root containerSecurityContext for engine operator when operator&#39;s is null" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should have default containerSecurityContext for engine operator when operator and root values are null" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should not include extra init containers by default" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should include extra init containers from engine.executor level" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should include extra init containers from root level (as string)" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should include extra init containers from engine.executor level when both are defined" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should include extra init containers as YAML array" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should set runAsUser, runAsGroup and fsGroup to null when using OpenShift overrides for podSecurityContext" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should override containerSecurityContext for engine operator with OpenShift values" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should apply complete OpenShift security context configuration for engine operator" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should not include priorityClassName by default" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="engine.operator.priorityClassName should set priorityClassName" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should not include priorityClassName when engine.operator.priorityClassName is empty" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should not include priorityClassName by default in executor template" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="engine.executor.priorityClassName should set priorityClassName in executor template" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should not include priorityClassName when engine.executor.priorityClassName is empty in executor template" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Engine Operator Tests" name="should not include priorityClassName when engine.executor.priorityClassName is null in executor template" time="0.020"></testcase>
+	</testsuite>
+	<testsuite id="13" tests="44" failures="0" errors="0" package="" time="1.674" name="Dremio EE Helm Chart.Executor Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="default engine should render" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should include extra environment variables set at the root level in values.yaml" time="0.033"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="environment variables set at executor.extraEnvs should take precedence over environment variables set at root level" time="0.034"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="environment variable names cannot begin with &#39;DREMIO_&#39;" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="environment variable names can contain &#39;DREMIO&#39;" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should write logs to file by default" time="0.040"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should use default volume size for executor logs" time="0.040"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should use custom volume size when specified at executor level" time="0.039"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should use engine-specific volume size when specified" time="0.052"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should use default storage class when not specified" time="0.038"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should use global storage class for log volume" time="0.038"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should use executor logs storage class when specified" time="0.037"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should create separate StatefulSets for multiple engines with different log configs" time="0.084"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should set correct environment variables for file logging" time="0.040"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should set correct environment variables for console logging" time="0.039"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should mount log volume at correct path" time="0.040"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should use ReadWriteOnce access mode for log volume" time="0.038"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should handle different volume size formats" time="0.038"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should handle large volume sizes" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should set correct log environment variables when writeLogsToFile is true" time="0.033"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should set correct log environment variables when writeLogsToFile is false" time="0.034"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should prioritize engine-specific writeLogsToFile over executor level" time="0.044"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should include log volume mount when logging is enabled" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should not include log volume mount when logging is disabled" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should include log volume mount for engine-specific override" time="0.044"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should not create log volume claim template when logging is disabled" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should use global storage class for log volume" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should use executor log storage class when specified" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should use engine-specific log storage class when specified" time="0.042"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should not create log volume mount when disabled" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should use default volume size when not specified" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should use default init container image" time="0.030"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should use custom init container image" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="catalogservices should be excluded when feature is disabled (JVM options excluded)" time="0.030"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="JVM options for catalogservices should be included by default" time="0.030"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should create multiple engines with different resource configurations" time="0.093"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should enable cloudCache by default (no explicit enabled setting)" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should allow disabling cloudCache per engine" time="0.053"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should support engine-specific cloudCache configuration" time="0.052"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should fail when global cloudCache is disabled" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should not include priorityClassName by default" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="executor.priorityClassName should set priorityClassName" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="engine-specific priorityClassName should override executor.priorityClassName" time="0.042"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Executor Tests" name="should not include priorityClassName when executor.priorityClassName is empty" time="0.032"></testcase>
+	</testsuite>
+	<testsuite id="14" tests="2" failures="0" errors="0" package="" time="0.036" name="Dremio EE Helm Chart.License Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.License Tests" name="should default to an empty string" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.License Tests" name="should configure the license" time="0.018"></testcase>
+	</testsuite>
+	<testsuite id="15" tests="41" failures="0" errors="0" package="" time="1.527" name="Dremio EE Helm Chart.Master Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should use default init container image" time="0.038"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should use custom init container image" time="0.034"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="catalogservices should be excluded when feature is disabled (JVM options excluded)" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="JVM options for catalogservices should be included by default" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should not set storageClassName for logs when no storageClass is defined" time="0.032"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should write logs to file by default" time="0.041"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should write logs to file when global dremio.log.enabled is true" time="0.040"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should not write logs to file when global dremio.log.enabled is false" time="0.043"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should not write logs to file when coordinator.log.enabled is false" time="0.041"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should write logs to file when coordinator.log.enabled is true" time="0.041"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should use custom log volume size when specified at coordinator level" time="0.038"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should use default storage class when not specified" time="0.042"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should use global storage class for log volume" time="0.039"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should use dremio logs storage class when specified" time="0.040"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should use coordinator logs storage class when specified" time="0.039"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should handle different volume size formats" time="0.039"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should handle large volume sizes" time="0.039"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should not specify storage class when none is configured" time="0.041"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should use global storage class for log volume when specified" time="0.039"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should use global storage class with different values" time="0.039"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should prioritize dremio logs storage class over global storage class" time="0.040"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should use coordinator logs storage class when specified" time="0.038"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should prioritize coordinator logs storage class over all other levels" time="0.055"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should fall back to dremio logs storage class when coordinator is not specified" time="0.033"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should fall back to global storage class when dremio logs is not specified" time="0.035"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should handle null storage class values correctly" time="0.034"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should handle empty string storage class values correctly" time="0.034"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should write logs to file when global writeLogsToFile is explicitly true" time="0.035"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should not write logs to file when global writeLogsToFile is false" time="0.036"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should write logs to file when coordinator writeLogsToFile is true" time="0.038"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should not write logs to file when coordinator writeLogsToFile is false" time="0.037"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should prioritize coordinator writeLogsToFile over global setting (coordinator true, global false)" time="0.036"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should prioritize coordinator writeLogsToFile over global setting (coordinator false, global true)" time="0.037"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should set DREMIO_LOG_TO_CONSOLE to &#34;0&#34; when writeLogsToFile is true" time="0.036"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should set DREMIO_LOG_TO_CONSOLE to &#34;1&#34; when writeLogsToFile is false" time="0.034"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should set DREMIO_LOG_DIR when writeLogsToFile is true" time="0.033"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should not set DREMIO_LOG_DIR when writeLogsToFile is false" time="0.035"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should include log volume mount when writeLogsToFile is true" time="0.034"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should not include log volume mount when writeLogsToFile is false" time="0.033"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should include log volume mount when coordinator writeLogsToFile overrides global false" time="0.034"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Master Tests" name="should not include log volume mount when coordinator writeLogsToFile overrides global true" time="0.032"></testcase>
+	</testsuite>
+	<testsuite id="16" tests="13" failures="0" errors="0" package="" time="0.248" name="Dremio EE Helm Chart.Service Client Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Service Client Tests" name="should create service with default LoadBalancer type" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Service Client Tests" name="should not include loadBalancerClass by default" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Service Client Tests" name="should not include loadBalancerIP by default" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Service Client Tests" name="should not include sessionAffinity by default" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Service Client Tests" name="should include loadBalancerClass when specified for LoadBalancer service" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Service Client Tests" name="should include loadBalancerIP when specified for LoadBalancer service" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Service Client Tests" name="should include sessionAffinity when specified" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Service Client Tests" name="should include both loadBalancerClass and loadBalancerIP when both specified" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Service Client Tests" name="should not include loadBalancerClass for ClusterIP service" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Service Client Tests" name="should not include loadBalancerIP for ClusterIP service" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Service Client Tests" name="should include all service configuration options when specified" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Service Client Tests" name="should create dremio-cluster-pod service as second document" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Service Client Tests" name="should include correct ports for dremio-client service" time="0.025"></testcase>
+	</testsuite>
+	<testsuite id="17" tests="32" failures="0" errors="0" package="" time="0.703" name="Dremio EE Helm Chart.Telemetry Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should have the correct image name" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should set the environment variables correctly if supplied via values" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="telemetry.podAnnotations should append pod annotations" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="pod annotations should apply when set at root level" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should not include nodeSelectors by default" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="telemetry.nodeSelector should take priority over nodeSelector" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="nodeSelector should apply when set at root level" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="metadata.annotations should be empty by default" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="telemetry.annotations should set metadata.annotations" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="telemetry.tolerations should apply tolerations" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="tolerations should be applied when set at root level" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="metadata.annotations should be apply when set at root level" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="telemetry.podLabels should apply podLabels" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="podLabels should be applied when set at root level" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should not include priorityClassName by default" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="telemetry.priorityClassName should set priorityClassName" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should not include priorityClassName when telemetry.priorityClassName is empty" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should not include imagePullSecrets by default" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should include imagePullSecrets" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should include trial secret name in pull secrets if dremio.trialImagePullCredentials is set" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should include imagePullSecrets in addition to the trial secret name in pull secrets" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should not include ServiceAccount annotations by default" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should include serviceAccountAnnotations when configured" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should have correct ServiceAccount metadata" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should have default podSecurityContext for telemetry" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should override podSecurityContext for telemetry" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should use root podSecurityContext for telemetry when telemetry&#39;s is null" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should have default podSecurityContext for telemetry when both are not set" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should have default containerSecurityContext for telemetry" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should override containerSecurityContext for telemetry" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should use root containerSecurityContext for telemetry when telemetry&#39;s is null" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Telemetry Tests" name="should have default containerSecurityContext for telemetry when both are null" time="0.026"></testcase>
+	</testsuite>
+	<testsuite id="18" tests="2" failures="0" errors="0" package="" time="0.045" name="Dremio EE Helm Chart.License Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.License Tests" name="should not render by default" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.License Tests" name="should create a secret that contains the trial image pull credentials" time="0.022"></testcase>
+	</testsuite>
+	<testsuite id="19" tests="9" failures="0" errors="0" package="" time="0.197" name="Dremio EE Helm Chart.MongoDB Backup Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Backup Tests" name="should not create secret when backup is disabled" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Backup Tests" name="should not create secret for AWS with metadata authentication" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Backup Tests" name="should not create secret for AWS with podIdentity authentication" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Backup Tests" name="should create secret for AWS with accessKeySecret authentication" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Backup Tests" name="should create secret for AWS with awsProfile authentication" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Backup Tests" name="should create secret for GCP with credentials" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Backup Tests" name="should create secret for GCP with credentials (single-line private key)" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Backup Tests" name="should create secret for Azure with credentials" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Backup Tests" name="should include secret annotations when configured" time="0.022"></testcase>
+	</testsuite>
+	<testsuite id="20" tests="21" failures="0" errors="0" package="" time="0.437" name="Dremio EE Helm Chart.MongoDB Hooks Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="should create service account for pre-delete hook" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="should include custom serviceAccountAnnotations when configured" time="0.039"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="should include single custom serviceAccountAnnotation when configured" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="should only have helm hook annotations when serviceAccountAnnotations is empty" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="should create role for pre-delete hook" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="should create role binding for pre-delete hook" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="should create job for pre-delete hook" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="should not include nodeSelector by default" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="mongodbHooks.nodeSelector should take priority over global nodeSelector" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="global nodeSelector should apply when mongodbHooks.nodeSelector is not set" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="should support multiple nodeSelector labels for mongodbHooks" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="should not include nodeSelector when both global and mongodbHooks nodeSelector are empty" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="should not include tolerations by default" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="mongodbHooks.tolerations should take priority over global tolerations" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="global tolerations should apply when mongodbHooks.tolerations is not set" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="should support multiple tolerations for mongodbHooks" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="should not include tolerations when both global and mongodbHooks tolerations are empty" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="should support tolerations with different operators and effects" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="should not include priorityClassName by default" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="mongodbHooks.priorityClassName should set priorityClassName" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Hooks Tests" name="should not include priorityClassName when mongodbHooks.priorityClassName is empty" time="0.019"></testcase>
+	</testsuite>
+	<testsuite id="21" tests="10" failures="0" errors="0" package="" time="0.185" name="Dremio EE Helm Chart.MongoDB Operator Service Account Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Operator Service Account Tests" name="should not include imagePullSecrets by default" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Operator Service Account Tests" name="should include imagePullSecrets" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Operator Service Account Tests" name="should include trial secret name in pull secrets if dremio.trialImagePullCredentials is set" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Operator Service Account Tests" name="should include imagePullSecrets in addition to the trial secret name in pull secrets" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Operator Service Account Tests" name="should not include annotations by default" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Operator Service Account Tests" name="should include serviceAccount.annotations when configured" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Operator Service Account Tests" name="should include single serviceAccount.annotation when configured" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Operator Service Account Tests" name="should not include annotations when serviceAccount.annotations is empty" time="0.017"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Operator Service Account Tests" name="should use correct service account name" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Operator Service Account Tests" name="should use custom service account name when configured" time="0.018"></testcase>
+	</testsuite>
+	<testsuite id="22" tests="72" failures="0" errors="0" package="" time="1.640" name="Dremio EE Helm Chart.MongoDB Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should create custom service account" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should create users secret" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should not create users secret if it already exists" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should create MongoDB cluster" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set labels" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set annotations" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set image" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set image pull policy" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set unsafe flags in dev mode" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should define secret names" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should define users" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should turn volume expansion off by default" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should turn volume expansion on" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should define 1 replicaset" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set replicaset resources" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set replicaset service account" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set replicaset labels" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set replicaset annotations" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set replicaset affinity" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set replicaset topology" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set replicaset tolerations" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set replicaset tolerations when set at root" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set replicaset priority class name" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set replicaset pod disruption budget" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set replicaset storage" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="mongodb.podAnnotations should append pod annotations" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="pod annotations should apply when set at root level" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should not include nodeSelectors by default" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="mongodb.nodeSelector should take priority over nodeSelector" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="nodeSelector should apply when set at root level" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="metadata.annotations should be empty by default" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="mongodb.annotations should set metadata.annotations" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="metadata.annotations should be apply when set at root level" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="mongodb.labels should set labels" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="labels should be applied when set at root" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should use mongodb.storageClass when specified" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should use global storageClass when mongodb.storageClass is not specified" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="mongodb.storageClass should take precedence over global storageClass" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set replicaset storage still when storageclass is specified" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should not include imagePullSecrets by default" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should include imagePullSecrets" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should include trial secret name in pull secrets if dremio.trialImagePullCredentials is set" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should include imagePullSecrets in addition to the trial secret name in pull secrets" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should not include service account annotations by default" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should include serviceAccountAnnotations when configured" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should include single serviceAccountAnnotation when configured" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should not include service account annotations when serviceAccountAnnotations is empty" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should use correct service account name" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should use custom service account name when configured" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should not include backup configuration when backup is disabled" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should include backup configuration when backup is enabled" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set backup image" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set backup resources" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set backup container security context" time="0.028"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set default PITR configuration" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set custom PITR configuration" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should disable PITR when configured" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should set custom backup configuration options" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should configure prefix correctly when path is root" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should configure prefix correctly when path is not root" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should configure prefix correctly when path has leading and trailing slash" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should configure S3 backup storage with AWS metadata authentication (no secret)" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should configure S3 backup storage with AWS podIdentity authentication (no secret)" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should configure S3 backup storage with AWS accessKeySecret authentication (with secret)" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should configure S3 backup storage with AWS awsProfile authentication (with secret)" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should configure S3-compatible backup storage" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should configure GCS backup storage with auto authentication (with secret)" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should configure GCS backup storage with serviceAccountKeys authentication (with secret)" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should configure Azure backup storage with accessKey authentication (with secret)" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should configure Azure backup storage with entraID authentication (with secret)" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should use default cluster domain for clusterServiceDNSSuffix" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.MongoDB Tests" name="should use custom cluster domain for clusterServiceDNSSuffix" time="0.022"></testcase>
+	</testsuite>
+	<testsuite id="23" tests="12" failures="0" errors="0" package="" time="0.237" name="Dremio EE Helm Chart.NATS Service Account Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.NATS Service Account Tests" name="should not include imagePullSecrets by default" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.NATS Service Account Tests" name="should include imagePullSecrets" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.NATS Service Account Tests" name="should include trial secret name in pull secrets if dremio.trialImagePullCredentials is set" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.NATS Service Account Tests" name="should include imagePullSecrets in addition to the trial secret name in pull secrets" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.NATS Service Account Tests" name="should not include annotations by default" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.NATS Service Account Tests" name="should include serviceAccount annotations when configured" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.NATS Service Account Tests" name="should include single serviceAccount annotation when configured" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.NATS Service Account Tests" name="should not include annotations when serviceAccount annotations is empty" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.NATS Service Account Tests" name="should use correct service account name" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.NATS Service Account Tests" name="should use custom service account name when configured" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.NATS Service Account Tests" name="should be a ServiceAccount" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.NATS Service Account Tests" name="should have correct apiVersion" time="0.018"></testcase>
+	</testsuite>
+	<testsuite id="24" tests="10" failures="0" errors="0" package="" time="0.243" name="Dremio EE Helm Chart.OpenSearch Aux Service Account Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Aux Service Account Tests" name="should not include imagePullSecrets by default" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Aux Service Account Tests" name="should include imagePullSecrets" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Aux Service Account Tests" name="should include trial secret name in pull secrets if dremio.trialImagePullCredentials is set" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Aux Service Account Tests" name="should include imagePullSecrets in addition to the trial secret name in pull secrets" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Aux Service Account Tests" name="should have required helm hook annotations by default" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Aux Service Account Tests" name="should include serviceAccountAnnotations when configured" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Aux Service Account Tests" name="should include single serviceAccountAnnotation when configured" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Aux Service Account Tests" name="should only have helm hook annotations when serviceAccountAnnotations is empty" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Aux Service Account Tests" name="should use correct service account name" time="0.028"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Aux Service Account Tests" name="should be a ServiceAccount" time="0.023"></testcase>
+	</testsuite>
+	<testsuite id="25" tests="11" failures="0" errors="0" package="" time="0.228" name="Dremio EE Helm Chart.OpenSearch Cluster Service Account Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Cluster Service Account Tests" name="should not include imagePullSecrets by default" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Cluster Service Account Tests" name="should include imagePullSecrets" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Cluster Service Account Tests" name="should include trial secret name in pull secrets if dremio.trialImagePullCredentials is set" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Cluster Service Account Tests" name="should include imagePullSecrets in addition to the trial secret name in pull secrets" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Cluster Service Account Tests" name="should not include annotations by default" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Cluster Service Account Tests" name="should include serviceAccountAnnotations when configured" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Cluster Service Account Tests" name="should include single serviceAccountAnnotation when configured" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Cluster Service Account Tests" name="should not include annotations when serviceAccountAnnotations is empty" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Cluster Service Account Tests" name="should use correct service account name" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Cluster Service Account Tests" name="should use custom service account name when configured" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Cluster Service Account Tests" name="should be a ServiceAccount" time="0.030"></testcase>
+	</testsuite>
+	<testsuite id="26" tests="10" failures="0" errors="0" package="" time="0.195" name="Dremio EE Helm Chart.OpenSearch Operator Service Account Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Operator Service Account Tests" name="should not include imagePullSecrets by default" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Operator Service Account Tests" name="should include imagePullSecrets" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Operator Service Account Tests" name="should include trial secret name in pull secrets if dremio.trialImagePullCredentials is set" time="0.019"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Operator Service Account Tests" name="should include imagePullSecrets in addition to the trial secret name in pull secrets" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Operator Service Account Tests" name="should not include annotations by default" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Operator Service Account Tests" name="should include serviceAccount.annotations when configured" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Operator Service Account Tests" name="should include single serviceAccount.annotation when configured" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Operator Service Account Tests" name="should not include annotations when serviceAccount.annotations is empty" time="0.018"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Operator Service Account Tests" name="should use correct service account name" time="0.029"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Operator Service Account Tests" name="should use custom service account name when configured" time="0.019"></testcase>
+	</testsuite>
+	<testsuite id="27" tests="35" failures="0" errors="0" package="" time="1.007" name="Dremio EE Helm Chart.OpenSearch Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should use custom pre-install job image" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should set nodeSelector on oidcProxy" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should set tolerations on oidcProxy" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should set nodeSelector on delete-opensearch-cluster hook" time="0.028"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should set nodeSelector on cert-rotation" time="0.028"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should set nodeSelector on opensearch pre install job" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should set tolerations on opensearch pre install job" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should set custom resources on oidc-proxy" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should set  pod labels oidc-proxy" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should have required pod anti-affinity rule to prevent pods on same node" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should set opensearch storage class when specified" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should use global storage class when opensearch storage class is not specified" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should prioritize opensearch storage class over global storage class" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should use default busyBox image for initHelper" time="0.029"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should use custom busyBox image for initHelper" time="0.030"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should use default initResources for initHelper" time="0.036"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should use custom initResources for initHelper" time="0.036"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should set tolerations on delete-opensearchcluster hook from preInstallJob.tolerations" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should fallback to opensearch.tolerations for delete-opensearchcluster when preInstallJob.tolerations not set" time="0.028"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should fallback to global tolerations for delete-opensearchcluster when opensearch tolerations not set" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should prioritize preInstallJob.tolerations over opensearch.tolerations for delete-opensearchcluster" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should prioritize opensearch.tolerations over global tolerations for delete-opensearchcluster" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should set bootstrap nodeSelector when specified" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should fallback to opensearch.nodeSelector for bootstrap when bootstrap.nodeSelector not set" time="0.028"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should fallback to global nodeSelector for bootstrap when opensearch nodeSelector not set" time="0.028"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should prioritize bootstrap.nodeSelector over opensearch.nodeSelector" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should set bootstrap tolerations when specified" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should fallback to opensearch.tolerations for bootstrap when bootstrap.tolerations not set" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should fallback to global tolerations for bootstrap when opensearch tolerations not set" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should prioritize bootstrap.tolerations over opensearch.tolerations" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should set bootstrap resources when specified" time="0.036"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should use default bootstrap resources" time="0.035"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should handle multiple tolerations for delete-opensearchcluster" time="0.041"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should not set tolerations on delete-opensearchcluster when none are configured" time="0.031"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenSearch Tests" name="should handle empty tolerations array for delete-opensearchcluster" time="0.031"></testcase>
+	</testsuite>
+	<testsuite id="28" tests="19" failures="0" errors="0" package="" time="0.409" name="Dremio EE Helm Chart.OpenShift Roles Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should not render when useOpenShiftRoles is false" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should render all 4 RoleBindings when useOpenShiftRoles is true" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should render additional RoleBindings for legacy executor engines" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should have correct metadata names for all RoleBindings" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should have correct metadata names for legacy executor engines" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should use default coordinator service account" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should use custom coordinator service account when specified" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should use default executor service account" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should use custom executor service account when specified" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should use default service accounts for legacy executor engines" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should use custom service accounts for legacy executor engines when specified" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should reference correct ClusterRoles for coordinator" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should reference correct ClusterRoles for executor" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should reference correct ClusterRoles for legacy executor engines" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should have correct roleRef properties for all RoleBindings" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should have correct subject properties for all RoleBindings" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should have correct subject properties for legacy executor engines" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should handle empty executor engines list" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.OpenShift Roles Tests" name="should handle single legacy executor engine" time="0.021"></testcase>
+	</testsuite>
+	<testsuite id="29" tests="12" failures="0" errors="0" package="" time="0.249" name="Dremio EE Helm Chart.Zookeeper Service Account Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.Zookeeper Service Account Tests" name="should not include imagePullSecrets by default" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Zookeeper Service Account Tests" name="should include imagePullSecrets" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Zookeeper Service Account Tests" name="should include trial secret name in pull secrets if dremio.trialImagePullCredentials is set" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Zookeeper Service Account Tests" name="should include imagePullSecrets in addition to the trial secret name in pull secrets" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Zookeeper Service Account Tests" name="should not include annotations by default" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Zookeeper Service Account Tests" name="should include serviceAccountAnnotations when configured" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Zookeeper Service Account Tests" name="should include single serviceAccountAnnotation when configured" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Zookeeper Service Account Tests" name="should not include annotations when serviceAccountAnnotations is empty" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Zookeeper Service Account Tests" name="should use correct service account name" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Zookeeper Service Account Tests" name="should use custom service account name when configured" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Zookeeper Service Account Tests" name="should be a ServiceAccount" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.Zookeeper Service Account Tests" name="should have correct apiVersion" time="0.021"></testcase>
+	</testsuite>
+	<testsuite id="30" tests="41" failures="0" errors="0" package="" time="0.905" name="Dremio EE Helm Chart.ZooKeeper Tests" timestamp="2026-01-26T16:34:54" hostname="dremio-helm-charts-releases-2f3-2-3-6-44f94-01c3x-g9lrf">
+		<properties>
+			<property name="helm-unittest.version" value="1.6"></property>
+		</properties>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should create ZooKeeper StatefulSet when enabled" time="0.027"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should set custom replica count" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should not include priorityClassName by default" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="zookeeper.priorityClassName should set priorityClassName" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should not include priorityClassName when zookeeper.priorityClassName is empty" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should not include nodeSelector by default" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="zookeeper.nodeSelector should set nodeSelector" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should use global nodeSelector when zookeeper.nodeSelector not set" time="0.030"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="zookeeper.nodeSelector should override global nodeSelector" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should not include tolerations by default" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="zookeeper.tolerations should set tolerations" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should use global tolerations when zookeeper.tolerations not set" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="zookeeper.tolerations should override global tolerations" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should not include StatefulSet annotations by default" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="zookeeper.annotations should set StatefulSet annotations" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should use global annotations when zookeeper.annotations not set" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="zookeeper.annotations should override global annotations" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should not include StatefulSet labels by default" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="zookeeper.labels should set StatefulSet labels" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should use global labels when zookeeper.labels not set" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="zookeeper.labels should override global labels" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should include default metrics annotations on pods" time="0.023"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="zookeeper.podAnnotations should add custom pod annotations" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should use global podAnnotations when zookeeper.podAnnotations not set" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="zookeeper.podAnnotations should override global podAnnotations" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should include default app label on pods" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="zookeeper.podLabels should add custom pod labels" time="0.022"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should use global podLabels when zookeeper.podLabels not set" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="zookeeper.podLabels should override global podLabels" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should include default serviceAccountName" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="zookeeper.serviceAccount should set custom serviceAccountName" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should not include serviceAccountName when zookeeper.serviceAccount is empty" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should set JVMFLAGS with default memory allocation" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should set JVMFLAGS with custom memory allocation" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should include logback configuration in JVMFLAGS" time="0.021"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should include required ZooKeeper environment variables" time="0.025"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should include pod anti-affinity by default" time="0.026"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should create persistent volume claims" time="0.024"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should set custom storage size" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should set storage class when specified" time="0.020"></testcase>
+		<testcase classname="Dremio EE Helm Chart.ZooKeeper Tests" name="should use global storage class when zookeeper.storageClass not set" time="0.020"></testcase>
+	</testsuite>
+</testsuites>

@@ -1,0 +1,115 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+# Service account to run the pre-delete hook with.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-mongodb-pre-delete
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    helm.sh/hook-weight: "-10"
+    {{- with .Values.mongodbHooks.serviceAccountAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- include "dremio.imagePullSecrets" $ }}
+
+---
+# Role for the pre-delete hook to delete the mongodb cluster.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-mongodb-pre-delete-role
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-10"
+rules:
+  - apiGroups: ["psmdb.dremio.com"]
+    resources: ["perconaservermongodbs"]
+    verbs: ["get", "delete", "list", "watch", "patch"]
+  - apiGroups: ["psmdb.dremio.com"]
+    resources: ["perconaservermongodbbackups"]
+    verbs: ["get", "delete", "list", "watch", "patch"]
+
+---
+# Role binding for the pre-delete hook to delete the mongodb cluster.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-mongodb-pre-delete-rolebinding
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-10"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Release.Name }}-mongodb-pre-delete-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Release.Name }}-mongodb-pre-delete
+    namespace: {{ .Release.Namespace }}
+
+---
+# "helm uninstall" could delete the operator before the custom resources,
+# use pre-delete hook to delete the mongodb cluster.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: delete-mongodbcluster
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 300
+  template:
+    spec:
+      serviceAccountName: {{ .Release.Name }}-mongodb-pre-delete
+      restartPolicy: Never
+      {{- include "dremio.mongodbHooks.priorityClassName" $ | nindent 6 }}
+      {{- include "dremio.mongodbHooks.nodeSelector" $ | nindent 6 }}
+      {{- include "dremio.mongodbHooks.tolerations" $ | nindent 6 }}
+      securityContext:
+        {{- toYaml .Values.mongodbHooks.podSecurityContext | nindent 8 }}
+      containers:
+        - name: delete-mongodbcluster
+          image: {{ .Values.utils.image.repository }}:{{ .Values.utils.image.tag }}
+          imagePullPolicy: {{ .Values.utils.image.pullPolicy }}
+          command:
+            - "/bin/sh"
+            - "-c"
+            - |
+              delete_and_wait() {
+                local kind=$1
+                echo "deleting all $kind..."
+                objects=$(kubectl get "$kind" -n "{{ .Release.Namespace }}" -o jsonpath='{.items[*].metadata.name}')
+                kubectl delete -n "{{ .Release.Namespace }}" "$kind" --all --ignore-not-found=true --wait=false
+                for object in $objects; do
+                  echo "waiting for $kind/$object to be deleted..."
+                  kubectl wait --for=delete "$kind/$object" -n "{{ .Release.Namespace }}" --timeout=90s
+                  if [ $? -ne 0 ]; then
+                    echo "delete operation for $kind/$object did not complete in time, removing finalizers"
+                    kubectl patch "$kind" "$object" -n "{{ .Release.Namespace }}" --type=json -p='[{"op": "remove", "path": "/metadata/finalizers"}]'
+                  fi
+                done
+                echo "all $kind deleted"
+              }
+              delete_and_wait perconaservermongodbbackups.psmdb.dremio.com && \
+              delete_and_wait perconaservermongodbs.psmdb.dremio.com
+          securityContext:
+            {{- toYaml .Values.mongodbHooks.containerSecurityContext | nindent 12 }}
+          resources:
+            limits:
+              cpu: 100m
+              memory: 100Mi
+            requests:
+              cpu: 100m
+              memory: 100Mi

@@ -1,0 +1,11 @@
+Dremio Enterprise Helm Chart
+
+Copyright (C) 2017-2019 Dremio Corporation.
+Files in this Helm chart are confidential and private property.
+
+This Helm chart includes the following sub-charts, released under the
+Apache License, Version 2.0 (SPDX-License-Identifier: APACHE-2.0):
+
+- Percona MongoDB Operator: https://github.com/percona/percona-server-mongodb-operator
+- Nats Helm Chart: https://github.com/nats-io/k8s/tree/main/helm/charts/nats
+- Opensearch Operator: https://github.com/opensearch-project/opensearch-k8s-operator

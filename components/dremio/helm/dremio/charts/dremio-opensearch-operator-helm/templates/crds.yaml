@@ -1,0 +1,23 @@
+{{- if .Values.installCRDs -}}
+{{- $crdFiles := .Files.Glob "files/*.yaml" }}
+{{- if not $crdFiles }}
+  {{- $crdFiles = .Files.Glob "crds/*.yaml" }}
+{{- end }}
+{{- range $path, $_ := $crdFiles }}
+  {{- $raw := $.Files.Get $path -}}
+  {{- $docs := splitList "\n---\n" $raw -}}
+  {{- range $doc := $docs }}
+    {{- if and $doc (ne $doc "") }}
+      {{- $obj := fromYaml $doc }}
+      {{- if $obj }}
+        {{- $labels := include "opensearch-operator.labels" $ | fromYaml }}
+        {{- $md := default (dict) $obj.metadata }}
+        {{- $_ := set $md "labels" (merge (default (dict) $obj.metadata.labels) $labels) }}
+        {{- $_ := set $obj "metadata" $md }}
+{{ $obj | toYaml }}
+---
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

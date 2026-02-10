@@ -1,0 +1,86 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+{{- if .Values.useOpenShiftRoles }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: allow-dremio-coordinator-accounts-to-use-nonroot
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.coordinator.serviceAccount }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:nonroot
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: allow-dremio-coordinator-accounts-to-use-nonroot-v2
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.coordinator.serviceAccount }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:nonroot-v2
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: allow-dremio-executor-accounts-to-use-nonroot
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.engine.executor.serviceAccount }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:nonroot-v2
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: allow-dremio-executor-accounts-to-use-nonroot-v2
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.engine.executor.serviceAccount }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:nonroot-v2
+{{- range $engineIndex, $engineName := $.Values.executor.engines }}
+{{- $executorName := ternary "dremio-executor" (printf "dremio-executor-%s" $engineName) (eq $engineName "default") }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: allow-dremio-engine-{{ $engineName }}-use-nonroot
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "dremio.executor.serviceAccount" (list $ $engineName) }}
+    namespace: {{ $.Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:nonroot-v2
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: allow-dremio-engine-{{ $engineName }}-to-use-nonroot-v2
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "dremio.executor.serviceAccount" (list $ $engineName) }}
+    namespace: {{ $.Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:nonroot-v2
+{{- end }}
+{{- end -}}

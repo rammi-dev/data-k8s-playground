@@ -1,0 +1,434 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+suite: Dremio EE Helm Chart.Catalog Server Tests
+release:
+  name: my-release
+  namespace: my-namespace
+templates:
+  - dremio-catalog-server-deployment.yaml
+set:
+  distStorage:
+    type: gcp
+    gcp:
+      bucketName: test-bucket
+      authentication: auto
+      credentials:
+        clientEmail: test@example.com
+        privateKey: test-private-key
+tests:
+  - it: catalog.podAnnotations should append pod annotations
+    set:
+      podAnnotations:
+        root: test
+      catalog:
+        podAnnotations:
+          catalog: test
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.catalog
+          value: test
+  - it: pod annotations should apply when set at root level
+    set:
+      podAnnotations:
+        root: test
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.root
+          value: test
+  - it: should not include nodeSelectors by default
+    asserts:
+      - notExists:
+          path: spec.template.spec.nodeSelector
+
+  - it: catalog.nodeSelector should take priority over nodeSelector
+    set:
+      catalog:
+        nodeSelector:
+          catalogSelector: catalogSelector
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            catalogSelector: catalogSelector
+  - it: nodeSelector should apply when set at root level
+    set:
+      nodeSelector:
+        testSelector: testSelector
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            testSelector: testSelector
+  - it: catalog.tolerations should apply tolerations
+    set:
+      tolerations: [{key: "root", operator: "Equal", value: "value1", effect: "NoSchedule" }]
+      catalog:
+        tolerations: [{key: "catalog", operator: "Equal", value: "value1", effect: "NoSchedule" }]
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value: [{key: "catalog", operator: "Equal", value: "value1", effect: "NoSchedule" }]
+  - it: tolerations should be applied when set at root level
+    set:
+      tolerations: [{key: "root", operator: "Equal", value: "value1", effect: "NoSchedule" }]
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value: [{key: "root", operator: "Equal", value: "value1", effect: "NoSchedule" }]
+  - it: metadata.annotations should be empty by default
+    asserts:
+      - notExists:
+          path: metadata.annotations
+  - it: catalog.annotations should set metadata.annotations
+    set:
+      annotations:
+        rootAnnotation: test
+      catalog:
+        annotations:
+          catalogAnnotation: test
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            catalogAnnotation: test
+  - it: metadata.annotations should be apply when set at root level
+    set:
+      annotations:
+        rootAnnotation: test
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            rootAnnotation: test
+  - it: catalog.podLabels should apply podLabels
+    set:
+      podLabels:
+        root: test
+      catalog:
+        podLabels:
+          catalog: test
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.catalog
+          value: test
+  - it: podLabels should be applied when set at root level
+    set:
+      podLabels:
+        root: test
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.root
+          value: test
+  - it: should include extra volumes and volume mounts
+    set:
+      catalog:
+        extraVolumes:
+          - name: extra-volume
+            emptyDir: {}
+        extraVolumeMounts:
+          - name: extra-volume
+            mountPath: /extra
+            readOnly: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: extra-volume
+            mountPath: /extra
+            readOnly: false
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: extra-volume
+            emptyDir: {}
+  - it: should include extra env vars
+    set:
+      catalog:
+        extraEnvs:
+          - name: foo
+            value: bar
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: foo
+            value: bar
+  # Tests for copy run scripts init container helper
+  - it: should include copy run scripts init container with default values
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: copy-run-scripts
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: quay.io/dremio/dremio-catalog-server:26.1.3
+      - equal:
+          path: spec.template.spec.initContainers[0].imagePullPolicy
+          value: IfNotPresent
+      - equal:
+          path: spec.template.spec.initContainers[0].command
+          value: ["sh", "-c", "cp /opt/jboss/container/java/run/* /mnt/rundir"]
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: 200Mi
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.memory
+          value: 200Mi
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: run-scripts
+            mountPath: /mnt/rundir
+  - it: should use custom catalog image configuration for copy run scripts init container
+    set:
+      catalog:
+        image:
+          repository: custom-catalog-repo
+          tag: custom-tag
+          pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: copy-run-scripts
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: custom-catalog-repo:custom-tag
+      - equal:
+          path: spec.template.spec.initContainers[0].imagePullPolicy
+          value: Always
+  - it: should include default security context for copy run scripts init container
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsUser
+          value: 10000
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsGroup
+          value: 10001
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.privileged
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.drop[0]
+          value: ALL
+  - it: should use custom security context for copy run scripts init container
+    set:
+      catalog:
+        containerSecurityContext:
+          runAsUser: 1001
+          runAsGroup: 1002
+          runAsNonRoot: false
+          privileged: true
+          allowPrivilegeEscalation: true
+          readOnlyRootFilesystem: false
+          capabilities:
+            add:
+              - SYS_ADMIN
+            drop:
+              - NET_ADMIN
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsUser
+          value: 1001
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsGroup
+          value: 1002
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.privileged
+          value: true
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
+          value: true
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.readOnlyRootFilesystem
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.add[0]
+          value: SYS_ADMIN
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.drop[0]
+          value: NET_ADMIN
+
+  - it: should include extra init containers from catalog level
+    set:
+      catalog:
+        extraInitContainers:
+          - name: extra-init-container
+            image: extra-init-container-image
+            command: ["sh", "-c", "echo 'Hello {{ .Release.Name }}'"]
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: extra-init-container
+            image: extra-init-container-image
+            command: ["sh", "-c", "echo 'Hello my-release'"]
+  - it: should include extra init containers from root level (as string)
+    set:
+      extraInitContainers: >
+        - name: extra-init-container
+          image: extra-init-container-image
+          command: ["sh", "-c", "echo 'Hello {{ .Release.Name }}'"]
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: extra-init-container
+            image: extra-init-container-image
+            command: ["sh", "-c", "echo 'Hello my-release'"]
+  - it: should include extra init containers from catalog level when both are defined
+    set:
+      extraInitContainers: >
+        - name: extra-init-container-root
+          image: extra-init-container-image-root
+          command: [ "sh", "-c", "echo 'Hello {{ .Release.Name }}' from root" ]
+      catalog:
+        extraInitContainers:
+          - name: extra-init-container-catalog
+            image: extra-init-container-image-catalog
+            command: ["sh", "-c", "echo 'Hello {{ .Release.Name }}' from catalog"]
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: extra-init-container-catalog
+            image: extra-init-container-image-catalog
+            command: ["sh", "-c", "echo 'Hello my-release' from catalog"]
+      - notContains:
+          path: spec.template.spec.initContainers
+          content:
+            name: extra-init-container
+            image: extra-init-container-image
+            command: ["sh", "-c", "echo 'Hello my-release' from root"]
+
+  - it: should include extra start params from catalog level
+    set:
+      catalog:
+        extraStartParams: >-
+          -Dtest.release={{ .Release.Name }}
+          -Dtest.namespace={{ .Release.Namespace }}
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAVA_OPTS_APPEND
+            value: -Dtest.release=my-release -Dtest.namespace=my-namespace
+  - it: should include extra start params from root level
+    set:
+      extraStartParams: >-
+        -Dtest.release={{ .Release.Name }}
+        -Dtest.namespace={{ .Release.Namespace }}
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAVA_OPTS_APPEND
+            value: -Dtest.release=my-release -Dtest.namespace=my-namespace
+  - it: should include extra start params from catalog level when both are defined
+    set:
+      extraStartParams: >-
+        -Dtest.release={{ .Release.Name }}
+        -Dtest.namespace={{ .Release.Namespace }}
+      catalog:
+        extraStartParams: >-
+          -Dtest.catalog.release={{ .Release.Name }}
+          -Dtest.catalog.namespace={{ .Release.Namespace }}
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAVA_OPTS_APPEND
+            value: -Dtest.catalog.release=my-release -Dtest.catalog.namespace=my-namespace
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAVA_OPTS_APPEND
+            value: -Dtest.release=my-release -Dtest.namespace=my-namespace
+
+  # PriorityClassName tests
+  - it: should not include priorityClassName by default
+    asserts:
+      - notExists:
+          path: spec.template.spec.priorityClassName
+  - it: catalog.priorityClassName should set priorityClassName
+    set:
+      catalog:
+        priorityClassName: catalog-high-priority
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: catalog-high-priority
+  - it: should not include priorityClassName when catalog.priorityClassName is empty
+    set:
+      catalog:
+        priorityClassName: ""
+    asserts:
+      - notExists:
+          path: spec.template.spec.priorityClassName
+  - it: should fail to set location with trailing slash
+    set:
+      catalog:
+        storage:
+          location: "invalid/loc/"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid value for catalog.storage.location: must not end with a slash (/)"
+  - it: should fail to set location with trailing slash from array
+    set:
+      catalog:
+        storage:
+          location: ["valid/path", "invalid/loc/"]
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid value for catalog.storage.location: must not end with a slash (/)"
+  - it: should set base-location catalog config when location is simple string
+    set:
+      catalog:
+        storage:
+          location: "test-loc"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: dremio.catalog.storage.base-location
+            value: test-loc
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: dremio.catalog.storage.locations
+            value: test-loc
+  - it: should set locations catalog config from array
+    set:
+      catalog:
+        storage:
+          location: [ "s3://bucket2", "s3://bucket1/loc" ]
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: dremio.catalog.storage.base-location
+            value: "s3://bucket2"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: dremio.catalog.storage.locations
+            value: "s3://bucket2,s3://bucket1/loc"

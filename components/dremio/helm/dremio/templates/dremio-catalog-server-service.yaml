@@ -1,0 +1,68 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dremio.catalog.app.name" $ }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: dremio
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app: {{ include "dremio.catalog.app.name" $ }}
+    app-group: dremio
+    catalog-type: internal
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ include "dremio.catalog.app.name" $ }}
+    catalog-type: internal
+  ports:
+    - name: catalog-http
+      port: {{ include "dremio.catalog.ports.http.internal" $ }}
+      protocol: TCP
+  sessionAffinity: None
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dremio.catalog.app.name" $ }}-mgmt
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: dremio
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app: {{ include "dremio.catalog.app.name" $ }}
+    app-group: dremio
+    catalog-type: internal
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: {{ include "dremio.catalog.app.name" $ }}
+    catalog-type: internal
+  ports:
+    - name: catalog-mgmt
+      port: {{ include "dremio.catalog.ports.mgmt.internal" $ }}
+      protocol: TCP
+---
+# Note: the GRPC service selects pods from both internal and external deployments
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dremio.catalog.app.name" $ }}-grpc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: dremio
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app: {{ include "dremio.catalog.app.name" $ }}
+    app-group: dremio
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: {{ include "dremio.catalog.app.name" $ }}
+  ports:
+    - name: catalog-grpc
+      port: {{ include "dremio.catalog.ports.grpc" $ }}
+      protocol: TCP

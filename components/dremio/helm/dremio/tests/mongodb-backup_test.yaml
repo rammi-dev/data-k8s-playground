@@ -1,0 +1,163 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+suite: Dremio EE Helm Chart.MongoDB Backup Tests
+
+templates:
+  - mongodb-backup.yaml
+
+set:
+  distStorage:
+    type: aws
+    aws:
+      bucketName: test-bucket
+      region: us-west-2
+
+release:
+  name: my-release
+  namespace: my-namespace
+
+tests:
+
+  # Secret generation tests
+  - it: should not create secret when backup is disabled
+    set:
+      mongodb.backup.enabled: false
+    asserts:
+      - hasDocuments: { count: 0 }
+
+  - it: should not create secret for AWS with metadata authentication
+    set:
+      mongodb.backup.enabled: true
+      distStorage: { type: aws, aws: { bucketName: test-bucket, authentication: metadata } }
+    asserts:
+      - hasDocuments: { count: 0 }
+
+  - it: should not create secret for AWS with podIdentity authentication
+    set:
+      mongodb.backup.enabled: true
+      distStorage: { type: aws, aws: { bucketName: test-bucket, authentication: podIdentity } }
+    asserts:
+      - hasDocuments: { count: 0 }
+
+  - it: should create secret for AWS with accessKeySecret authentication
+    set:
+      mongodb.backup.enabled: true
+      distStorage: { type: aws, aws: { bucketName: test-bucket, authentication: accessKeySecret, credentials: { accessKey: my-access-key, secret: my-secret-key } } }
+    asserts:
+      - hasDocuments: { count: 1 }
+      - containsDocument:
+          kind: Secret
+          apiVersion: v1
+          name: my-release-mongodb-backup
+          namespace: my-namespace
+          type: Opaque
+          stringData:
+            AWS_ACCESS_KEY_ID: my-access-key
+            AWS_SECRET_ACCESS_KEY: my-secret-key
+
+  - it: should create secret for AWS with awsProfile authentication
+    set:
+      mongodb.backup.enabled: true
+      distStorage: { type: aws, aws: { bucketName: test-bucket, authentication: awsProfile, credentials: { accessKey: profile-access-key, secret: profile-secret-key } } }
+    asserts:
+      - hasDocuments: { count: 1 }
+      - containsDocument:
+          kind: Secret
+          apiVersion: v1
+          name: my-release-mongodb-backup
+          namespace: my-namespace
+          type: Opaque
+          stringData:
+            AWS_ACCESS_KEY_ID: profile-access-key
+            AWS_SECRET_ACCESS_KEY: profile-secret-key
+
+  - it: should create secret for GCP with credentials
+    set:
+      mongodb.backup.enabled: true
+      distStorage:
+        type: gcp
+        gcp:
+          bucketName: test-gcp-bucket
+          authentication: auto
+          credentials:
+            clientEmail: test@example.com
+            privateKey: |
+              -----BEGIN PRIVATE KEY-----
+              my-private-key
+              -----END PRIVATE KEY-----
+    asserts:
+      - hasDocuments: { count: 1 }
+      - containsDocument:
+          kind: Secret
+          apiVersion: v1
+          name: my-release-mongodb-backup
+          namespace: my-namespace
+          type: Opaque
+          stringData:
+            GCS_CLIENT_EMAIL: test@example.com
+            GCS_PRIVATE_KEY: |
+              -----BEGIN PRIVATE KEY-----
+              my-private-key
+              -----END PRIVATE KEY-----
+
+  - it: should create secret for GCP with credentials (single-line private key)
+    set:
+      mongodb.backup.enabled: true
+      distStorage:
+        type: gcp
+        gcp:
+          bucketName: test-gcp-bucket
+          authentication: auto
+          credentials:
+            clientEmail: test@example.com
+            privateKey: -----BEGIN PRIVATE KEY-----\nmy-private-key\n-----END PRIVATE KEY-----\n
+    asserts:
+      - hasDocuments: { count: 1 }
+      - containsDocument:
+          kind: Secret
+          apiVersion: v1
+          name: my-release-mongodb-backup
+          namespace: my-namespace
+          type: Opaque
+          stringData:
+            GCS_CLIENT_EMAIL: test@example.com
+            GCS_PRIVATE_KEY: |
+              -----BEGIN PRIVATE KEY-----
+              my-private-key
+              -----END PRIVATE KEY-----
+
+  - it: should create secret for Azure with credentials
+    set:
+      mongodb.backup.enabled: true
+      distStorage: { type: azureStorage, azureStorage: { filesystem: test-container, accountName: test-account, authentication: entraID, credentials: { accessKey: azure-access-key } } }
+    asserts:
+      - hasDocuments: { count: 1 }
+      - containsDocument:
+          kind: Secret
+          apiVersion: v1
+          name: my-release-mongodb-backup
+          namespace: my-namespace
+          type: Opaque
+          stringData:
+            AZURE_STORAGE_ACCOUNT_NAME: test-account
+            AZURE_STORAGE_ACCOUNT_KEY: azure-access-key
+
+  - it: should include secret annotations when configured
+    set:
+      mongodb.backup.enabled: true
+      mongodb.backup.storageSecretAnnotations:
+        example.com/annotation-1: "value-1"
+        example.com/annotation-2: "value-2"
+      distStorage: { type: aws, aws: { bucketName: test-bucket, authentication: accessKeySecret, credentials: { accessKey: my-access-key, secret: my-secret-key } } }
+    asserts:
+      - hasDocuments: { count: 1 }
+      - equal:
+          path: metadata.annotations["example.com/annotation-1"]
+          value: "value-1"
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["example.com/annotation-2"]
+          value: "value-2"
+        documentIndex: 0

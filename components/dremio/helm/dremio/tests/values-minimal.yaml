@@ -1,0 +1,14 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+executor.engines: ["default"]
+distStorage:
+  type: gcp
+  gcp:
+    bucketName: "test"
+    authentication: auto
+    credentials:
+      clientEmail: test@example.com
+      privateKey: test-private-key
+

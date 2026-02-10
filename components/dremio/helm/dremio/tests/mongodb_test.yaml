@@ -1,0 +1,866 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+suite: Dremio EE Helm Chart.MongoDB Tests
+
+templates:
+  - mongodb.yaml
+
+release:
+  name: my-release
+  namespace: my-namespace
+
+tests:
+
+  - it: should create custom service account
+    set:
+      mongodb.serviceAccount: custom-service-account
+    asserts:
+      - hasDocuments: { count: 3 }
+      - equal: { path: kind, value: ServiceAccount }
+        documentIndex: 0
+      - equal: { path: metadata.name, value: custom-service-account }
+        documentIndex: 0
+
+  - it: should create users secret
+    asserts:
+      - hasDocuments: { count: 3 }
+      - equal: { path: kind, value: Secret }
+        documentIndex: 1
+      - equal: { path: metadata.name, value: my-release-mongodb-app-users }
+        documentIndex: 1
+
+  - it: should not create users secret if it already exists
+    kubernetesProvider:
+      scheme: { "v1/Secret": { gvr: { version: "v1", resource: "secrets" }, namespaced: true } }
+      objects:
+        - { kind: Secret, apiVersion: v1, metadata: { name: my-release-mongodb-app-users, namespace: my-namespace } }
+    asserts:
+      - hasDocuments: { count: 2 }
+
+  - it: should create MongoDB cluster
+    documentIndex: 2
+    asserts:
+      - containsDocument:
+          kind: PerconaServerMongoDB
+          apiVersion: psmdb.dremio.com/v1
+          name: my-release-mongodb
+          namespace: my-namespace
+
+  - it: should set labels
+    set:
+      mongodb.labels: { "label1": "value1", "label2": "value2" }
+    documentIndex: 2
+    asserts:
+      - isSubset: { path: metadata.labels, content: { "label1": "value1", "label2": "value2" } }
+
+  - it: should set annotations
+    set:
+      mongodb.annotations: { "annotation1": "value1", "annotation2": "value2" }
+    documentIndex: 2
+    asserts:
+      - isSubset: { path: metadata.annotations, content: { "annotation1": "value1", "annotation2": "value2" } }
+
+  - it: should set image
+    set:
+      mongodb.image: { repository: "my-repo", tag: "my-tag" }
+    documentIndex: 2
+    asserts:
+      - equal: { path: spec.image, value: my-repo:my-tag }
+
+  - it: should set image pull policy
+    set:
+      mongodb.image: { repository: "my-repo", tag: "my-tag", pullPolicy: "Always"}
+    documentIndex: 2
+    asserts:
+      - equal: { path: spec.imagePullPolicy, value: Always }
+
+  - it: should set unsafe flags in dev mode
+    set:
+      devMode: true
+    documentIndex: 2
+    asserts:
+      - isSubset: { path: spec, content: { unsafeFlags: { replsetSize: true } } }
+
+  - it: should define secret names
+    documentIndex: 2
+    asserts:
+      - isSubset: { path: spec, content: { secrets: { users: "my-release-mongodb-system-users" } } }
+
+  - it: should define users
+    documentIndex: 2
+    asserts:
+      - contains: { path: spec.users, content: { name: "dremio", db: "dremio", passwordSecretRef: { name: "my-release-mongodb-app-users", key: "dremio" }, roles: [ { name: readWrite, db: dremio } ] } }
+
+  - it: should turn volume expansion off by default
+    documentIndex: 2
+    asserts:
+      - equal: { path: spec.enableVolumeExpansion, value: false }
+
+  - it: should turn volume expansion on
+    documentIndex: 2
+    set:
+      mongodb.enableVolumeExpansion: true
+    asserts:
+      - equal: { path: spec.enableVolumeExpansion, value: true }
+
+  - it: should define 1 replicaset
+    documentIndex: 2
+    asserts:
+      - lengthEqual: { path: spec.replsets, count: 1 }
+      - contains: { any: true, path: spec.replsets, content: { name: "rs0", size: 3, serviceAccountName: "dremio-mongodb" } }
+
+  - it: should set replicaset resources
+    set:
+      mongodb.resources: { requests: { cpu: 3, memory: 3Gi }, limits: { cpu: 4, memory: 4Gi } }
+    documentIndex: 2
+    asserts:
+      - isSubset: { path: "spec.replsets[0].resources", content: { requests: { cpu: 3, memory: 3Gi }, limits: { cpu: 4, memory: 4Gi } } }
+
+  - it: should set replicaset service account
+    set:
+      mongodb.serviceAccount: my-service-account
+    documentIndex: 2
+    asserts:
+      - equal: { path: "spec.replsets[0].serviceAccountName", value: "my-service-account" }
+
+  - it: should set replicaset labels
+    set:
+      mongodb.labels: { "label1": "value1", "label2": "value2" }
+    documentIndex: 2
+    asserts:
+      - isSubset: { path: "spec.replsets[0].labels", content: { "label1": "value1", "label2": "value2" } }
+
+  - it: should set replicaset annotations
+    set:
+      mongodb.annotations: { "annotation1": "value1", "annotation2": "value2" }
+    documentIndex: 2
+    asserts:
+      - isSubset: { path: "spec.replsets[0].annotations", content: { "annotation1": "value1", "annotation2": "value2" } }
+
+  - it: should set replicaset affinity
+    set:
+      mongodb.affinity: { antiAffinityTopologyKey: "kubernetes.io/hostname" }
+    documentIndex: 2
+    asserts:
+      - isSubset: { path: "spec.replsets[0].affinity", content: { antiAffinityTopologyKey: "kubernetes.io/hostname" } }
+
+  - it: should set replicaset topology
+    set:
+      mongodb.topologySpreadConstraints:
+       - labelSelector:
+           matchLabels:
+             app.kubernetes.io/name: percona-server-mongodb
+         maxSkew: 1
+         topologyKey: kubernetes.io/hostname
+         whenUnsatisfiable: DoNotSchedule
+    documentIndex: 2
+    asserts:
+      - contains:
+          path: "spec.replsets[0].topologySpreadConstraints"
+          content:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: percona-server-mongodb
+            maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: DoNotSchedule
+
+  - it: should set replicaset tolerations
+    set:
+      mongodb.tolerations: [ { key: "key1", operator: "Equal", value: "value1", effect: "NoSchedule" } ]
+    documentIndex: 2
+    asserts:
+      - contains: { path: "spec.replsets[0].tolerations", content: { key: key1, operator: Equal, value: value1, effect: NoSchedule } }
+
+  - it: should set replicaset tolerations when set at root
+    set:
+      tolerations: [ { key: "key1", operator: "Equal", value: "value1", effect: "NoSchedule" } ]
+    documentIndex: 2
+    asserts:
+      - contains: { path: "spec.replsets[0].tolerations", content: { key: key1, operator: Equal, value: value1, effect: NoSchedule } }
+  - it: should set replicaset priority class name
+    set:
+      mongodb.priorityClassName: "high-priority"
+    documentIndex: 2
+    asserts:
+      - equal: { path: "spec.replsets[0].priorityClassName", value: "high-priority" }
+
+  - it: should set replicaset pod disruption budget
+    set:
+      mongodb.podDisruptionBudget: { maxUnavailable: 1 }
+    documentIndex: 2
+    asserts:
+      - isSubset: { path: "spec.replsets[0].podDisruptionBudget", content: { maxUnavailable: 1 } }
+
+  - it: should set replicaset storage
+    set:
+      mongodb.storage:
+        annotations: { "annotation1": "value1", "annotation2": "value2" }
+        labels: { "label1": "value1", "label2": "value2" }
+        resources: { requests: { storage: 1Ti } }
+        storageClassName: "premium"
+        accessModes: [ ReadWriteMany ]
+    documentIndex: 2
+    asserts:
+      - isSubset:
+          path: "spec.replsets[0].volumeSpec.persistentVolumeClaim"
+          content:
+            annotations: { "annotation1": "value1", "annotation2": "value2" }
+            labels: { "label1": "value1", "label2": "value2" }
+            resources: { requests: { storage: 1Ti } }
+            storageClassName: "premium"
+            accessModes: [ ReadWriteMany ]
+  - it: mongodb.podAnnotations should append pod annotations
+    documentIndex: 2
+    set:
+      podAnnotations:
+        root: test
+      mongodb:
+        annotations:
+          mongodb: test
+    asserts:
+      - equal:
+          path: "spec.replsets[0].annotations.mongodb"
+          value: test
+  - it: pod annotations should apply when set at root level
+    documentIndex: 2
+    set:
+      podAnnotations:
+        root: test
+    asserts:
+      - equal:
+          path: "spec.replsets[0].annotations.root"
+          value: test
+  - it: should not include nodeSelectors by default
+    documentIndex: 2
+    asserts:
+      - notExists:
+          path: spec.template.spec.nodeSelector
+  - it: mongodb.nodeSelector should take priority over nodeSelector
+    documentIndex: 2
+    set:
+      mongodb:
+        nodeSelector:
+          mongodbSelector: mongodbSelector
+      nodeSelector:
+        testSelector: testSelector
+    asserts:
+      - equal:
+          path: "spec.replsets[0].nodeSelector"
+          value:
+            mongodbSelector: mongodbSelector
+  - it: nodeSelector should apply when set at root level
+    documentIndex: 2
+    set:
+      nodeSelector:
+        testSelector: testSelector
+    asserts:
+      - equal:
+          path: "spec.replsets[0].nodeSelector"
+          value:
+            testSelector: testSelector
+  - it: metadata.annotations should be empty by default
+    documentIndex: 2
+    asserts:
+      - notExists:
+          path: metadata.annotations
+  - it: mongodb.annotations should set metadata.annotations
+    documentIndex: 2
+    set:
+      annotations:
+        rootAnnotation: test
+      mongodb:
+        annotations:
+          mongodbAnnotation: test
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            mongodbAnnotation: test
+  - it: metadata.annotations should be apply when set at root level
+    documentIndex: 2
+    set:
+      annotations:
+        rootAnnotation: test
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            rootAnnotation: test
+  - it: mongodb.labels should set labels
+    documentIndex: 2
+    set:
+      mongodb:
+        labels:
+          mongodb: test
+    asserts:
+      - equal:
+          path: "spec.replsets[0].labels.mongodb"
+          value: test
+  - it: labels should be applied when set at root
+    documentIndex: 2
+    set:
+      podLabels:
+        root: test
+    asserts:
+      - equal:
+          path: "spec.replsets[0].labels.root"
+          value: test
+
+  - it: should use mongodb.storageClass when specified
+    documentIndex: 2
+    set:
+      mongodb:
+        storageClass: mongodb-storage-class
+    asserts:
+      - equal:
+          path: "spec.replsets[0].volumeSpec.persistentVolumeClaim.storageClassName"
+          value: mongodb-storage-class
+
+  - it: should use global storageClass when mongodb.storageClass is not specified
+    documentIndex: 2
+    set:
+      storageClass: global-storage-class
+    asserts:
+      - equal:
+          path: "spec.replsets[0].volumeSpec.persistentVolumeClaim.storageClassName"
+          value: global-storage-class
+
+  - it: mongodb.storageClass should take precedence over global storageClass
+    documentIndex: 2
+    set:
+      storageClass: global-storage-class
+      mongodb:
+        storageClass: mongodb-storage-class
+    asserts:
+      - equal:
+          path: "spec.replsets[0].volumeSpec.persistentVolumeClaim.storageClassName"
+          value: mongodb-storage-class
+
+  - it: should set replicaset storage still when storageclass is specified
+    set:
+      mongodb.storageClass: mongodb-storage-class
+      mongodb.storage:
+        annotations: { "annotation1": "value1", "annotation2": "value2" }
+        labels: { "label1": "value1", "label2": "value2" }
+        resources: { requests: { storage: 1Ti } }
+        accessModes: [ ReadWriteMany ]
+    documentIndex: 2
+    asserts:
+      - isSubset:
+          path: "spec.replsets[0].volumeSpec.persistentVolumeClaim"
+          content:
+            annotations: { "annotation1": "value1", "annotation2": "value2" }
+            labels: { "label1": "value1", "label2": "value2" }
+            resources: { requests: { storage: 1Ti } }
+            accessModes: [ ReadWriteMany ]
+            storageClassName: mongodb-storage-class
+
+  # Service Account Annotation Tests
+  - it: should not include imagePullSecrets by default
+    documentIndex: 0
+    asserts:
+      - notExists:
+          path: imagePullSecrets
+  - it: should include imagePullSecrets
+    documentIndex: 0
+    set:
+      imagePullSecrets:
+        - test-0
+        - test-1
+    asserts:
+      - equal:
+          path: imagePullSecrets[0].name
+          value: test-0
+      - equal:
+          path: imagePullSecrets[1].name
+          value: test-1
+  - it: should include trial secret name in pull secrets if dremio.trialImagePullCredentials is set
+    documentIndex: 0
+    set:
+      dremio.trialImagePullCredentials: test-credentials
+    asserts:
+      - equal:
+          path: imagePullSecrets[0].name
+          value: dremio-trial-image-pull-credentials
+  - it: should include imagePullSecrets in addition to the trial secret name in pull secrets
+    documentIndex: 0
+    set:
+      imagePullSecrets:
+        - test-0
+        - test-1
+      dremio.trialImagePullCredentials: test-credentials
+    asserts:
+      - equal:
+          path: imagePullSecrets[0].name
+          value: test-0
+      - equal:
+          path: imagePullSecrets[1].name
+          value: test-1
+      - equal:
+          path: imagePullSecrets[2].name
+          value: dremio-trial-image-pull-credentials
+  - it: should not include service account annotations by default
+    documentIndex: 0
+    asserts:
+      - notExists:
+          path: metadata.annotations
+  - it: should include serviceAccountAnnotations when configured
+    documentIndex: 0
+    set:
+      mongodb:
+        serviceAccountAnnotations:
+          eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/my-role"
+          example.com/custom-annotation: "custom-value"
+    asserts:
+      - equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: "arn:aws:iam::123456789012:role/my-role"
+      - equal:
+          path: metadata.annotations["example.com/custom-annotation"]
+          value: "custom-value"
+  - it: should include single serviceAccountAnnotation when configured
+    documentIndex: 0
+    set:
+      mongodb:
+        serviceAccountAnnotations:
+          eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/my-role"
+    asserts:
+      - equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: "arn:aws:iam::123456789012:role/my-role"
+  - it: should not include service account annotations when serviceAccountAnnotations is empty
+    documentIndex: 0
+    set:
+      mongodb:
+        serviceAccountAnnotations: {}
+    asserts:
+      - notExists:
+          path: metadata.annotations
+  - it: should use correct service account name
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.name
+          value: dremio-mongodb
+  - it: should use custom service account name when configured
+    documentIndex: 0
+    set:
+      mongodb:
+        serviceAccount: custom-mongodb-service-account
+    asserts:
+      - equal:
+          path: metadata.name
+          value: custom-mongodb-service-account
+
+  # Backup Tests
+  - it: should not include backup configuration when backup is disabled
+    set:
+      mongodb.backup.enabled: false
+    documentIndex: 2
+    asserts: [ { notExists: { path: spec.backup } } ]
+  - it: should include backup configuration when backup is enabled
+    set:
+      mongodb.backup.enabled: true
+    documentIndex: 2
+    asserts: [ { exists: { path: spec.backup } }, { equal: { path: spec.backup.enabled, value: true } } ]
+  - it: should set backup image
+    set:
+      mongodb.backup.enabled: true
+      mongodb.backup.image:
+        repository: custom-backup-repo
+        tag: custom-tag
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: spec.backup.image
+          value: custom-backup-repo:custom-tag
+  - it: should set backup resources
+    set:
+      mongodb.backup.enabled: true
+      mongodb.backup.resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          cpu: 1
+          memory: 4Gi
+    documentIndex: 2
+    asserts:
+      - isSubset:
+          path: spec.backup.resources
+          content:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            limits:
+              cpu: 1
+              memory: 4Gi
+  - it: should set backup container security context
+    set:
+      mongodb.backup.enabled: true
+      mongodb.backup.containerSecurityContext:
+        allowPrivilegeEscalation: true
+        privileged: true
+        readOnlyRootFilesystem: true
+    documentIndex: 2
+    asserts:
+      - isSubset:
+          path: spec.backup.containerSecurityContext
+          content:
+            allowPrivilegeEscalation: true
+            privileged: true
+            readOnlyRootFilesystem: true
+  - it: should set default PITR configuration
+    set:
+      mongodb.backup.enabled: true
+    documentIndex: 2
+    asserts:
+      - isSubset:
+          path: spec.backup.pitr
+          content:
+            enabled: true
+            oplogSpanMin: 10
+            oplogOnly: false
+  - it: should set custom PITR configuration
+    set:
+      mongodb.backup.enabled: true
+      mongodb.backup.pitr:
+        enabled: false
+        oplogSpanMin: 30
+        oplogOnly: true
+    documentIndex: 2
+    asserts:
+      - isSubset:
+          path: spec.backup.pitr
+          content:
+            enabled: false
+            oplogSpanMin: 30
+            oplogOnly: true
+  - it: should disable PITR when configured
+    set:
+      mongodb.backup.enabled: true
+      mongodb.backup.pitr:
+        enabled: false
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: spec.backup.pitr.enabled
+          value: false
+  - it: should set custom backup configuration options
+    set:
+      mongodb.backup.enabled: true
+      mongodb.backup.configuration:
+        backupOptions:
+          priority: 6
+          oplogSpanMin: 10
+          timeouts:
+            startingStatus: 300
+        restoreOptions:
+          batchSize: 500
+          numInsertionWorkers: 10
+    documentIndex: 2
+    asserts:
+      - isSubset:
+          path: spec.backup.configuration
+          content:
+            backupOptions:
+              priority: 6
+              oplogSpanMin: 10
+              timeouts:
+                startingStatus: 300
+            restoreOptions:
+              batchSize: 500
+              numInsertionWorkers: 10
+
+  # Prefix Tests
+  - it: should configure prefix correctly when path is root
+    set:
+      mongodb.backup.enabled: true
+      distStorage:
+        type: aws
+        aws:
+          bucketName: my-s3-bucket
+          region: us-west-2
+          path: /
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: spec.backup.storages.my-release-catalog-backups.s3.prefix
+          value: catalog-backups
+
+  - it: should configure prefix correctly when path is not root
+    set:
+      mongodb.backup.enabled: true
+      distStorage:
+        type: aws
+        aws:
+          bucketName: my-s3-bucket
+          region: us-west-2
+          path: dremio/data
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: spec.backup.storages.my-release-catalog-backups.s3.prefix
+          value: dremio/data/catalog-backups
+
+  - it: should configure prefix correctly when path has leading and trailing slash
+    set:
+      mongodb.backup.enabled: true
+      distStorage:
+        type: aws
+        aws:
+          bucketName: my-s3-bucket
+          region: us-west-2
+          path: /dremio/data/
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: spec.backup.storages.my-release-catalog-backups.s3.prefix
+          value: dremio/data/catalog-backups
+
+  # Backup Storage Tests
+  - it: should configure S3 backup storage with AWS metadata authentication (no secret)
+    set:
+      mongodb.backup.enabled: true
+      distStorage:
+        type: aws
+        aws:
+          bucketName: my-s3-bucket
+          region: us-west-2
+          path: /dremio/data
+          authentication: metadata
+    documentIndex: 2
+    asserts:
+      - isSubset:
+          path: spec.backup.storages
+          content:
+            my-release-catalog-backups:
+              type: s3
+              main: true
+              s3:
+                bucket: my-s3-bucket
+                region: us-west-2
+                prefix: dremio/data/catalog-backups
+
+  - it: should configure S3 backup storage with AWS podIdentity authentication (no secret)
+    set:
+      mongodb.backup.enabled: true
+      distStorage:
+        type: aws
+        aws:
+          bucketName: my-s3-bucket
+          region: us-west-2
+          path: /dremio/data
+          authentication: podIdentity
+    documentIndex: 2
+    asserts:
+      - isSubset:
+          path: spec.backup.storages
+          content:
+            my-release-catalog-backups:
+              type: s3
+              main: true
+              s3:
+                bucket: my-s3-bucket
+                region: us-west-2
+                prefix: dremio/data/catalog-backups
+
+  - it: should configure S3 backup storage with AWS accessKeySecret authentication (with secret)
+    set:
+      mongodb.backup.enabled: true
+      distStorage:
+        type: aws
+        aws:
+          bucketName: my-s3-bucket
+          region: us-west-2
+          path: /dremio/data
+          authentication: accessKeySecret
+          credentials:
+            accessKey: test-access-key
+            secret: test-secret
+    documentIndex: 2
+    asserts:
+      - isSubset:
+          path: spec.backup.storages
+          content:
+            my-release-catalog-backups:
+              type: s3
+              main: true
+              s3:
+                bucket: my-s3-bucket
+                region: us-west-2
+                prefix: dremio/data/catalog-backups
+                credentialsSecret: my-release-mongodb-backup
+
+  - it: should configure S3 backup storage with AWS awsProfile authentication (with secret)
+    set:
+      mongodb.backup.enabled: true
+      distStorage:
+        type: aws
+        aws:
+          bucketName: my-s3-bucket
+          region: us-west-2
+          path: /dremio/data
+          authentication: awsProfile
+          credentials:
+            accessKey: test-access-key
+            secret: test-secret
+    documentIndex: 2
+    asserts:
+      - isSubset:
+          path: spec.backup.storages
+          content:
+            my-release-catalog-backups:
+              type: s3
+              main: true
+              s3:
+                bucket: my-s3-bucket
+                region: us-west-2
+                prefix: dremio/data/catalog-backups
+                credentialsSecret: my-release-mongodb-backup
+
+  - it: should configure S3-compatible backup storage
+    set:
+      mongodb.backup.enabled: true
+      distStorage:
+        type: aws
+        aws:
+          bucketName: my-s3-bucket
+          region: us-west-2
+          endpoint: https://example.com
+          tls: false
+          path: /dremio/data/
+    documentIndex: 2
+    asserts:
+      - isSubset:
+          path: spec.backup.storages
+          content:
+            my-release-catalog-backups:
+              type: s3
+              main: true
+              s3:
+                bucket: my-s3-bucket
+                region: us-west-2
+                endpointUrl: https://example.com
+                insecureSkipTLSVerify: true
+                prefix: dremio/data/catalog-backups
+
+  - it: should configure GCS backup storage with auto authentication (with secret)
+    set:
+      mongodb.backup.enabled: true
+      distStorage:
+        type: gcp
+        gcp:
+          bucketName: my-gcs-bucket
+          path: /dremio/data
+          authentication: auto
+          credentials:
+            clientEmail: test@example.com
+            privateKey: test-private-key
+    documentIndex: 2
+    asserts:
+      - isSubset:
+          path: spec.backup.storages
+          content:
+            my-release-catalog-backups:
+              type: gcs
+              main: true
+              gcs:
+                bucket: my-gcs-bucket
+                prefix: dremio/data/catalog-backups
+                credentialsSecret: my-release-mongodb-backup
+
+  - it: should configure GCS backup storage with serviceAccountKeys authentication (with secret)
+    set:
+      mongodb.backup.enabled: true
+      distStorage:
+        type: gcp
+        gcp:
+          bucketName: my-gcs-bucket
+          path: /dremio/data
+          authentication: serviceAccountKeys
+          credentials:
+            clientEmail: test@example.com
+            privateKey: test-private-key
+    documentIndex: 2
+    asserts:
+      - isSubset:
+          path: spec.backup.storages
+          content:
+            my-release-catalog-backups:
+              type: gcs
+              main: true
+              gcs:
+                bucket: my-gcs-bucket
+                prefix: dremio/data/catalog-backups
+                credentialsSecret: my-release-mongodb-backup
+
+  - it: should configure Azure backup storage with accessKey authentication (with secret)
+    set:
+      mongodb.backup.enabled: true
+      distStorage:
+        type: azureStorage
+        azureStorage:
+          accountName: mystorageaccount
+          filesystem: my-container
+          path: /dremio/data
+          authentication: accessKey
+          credentials:
+            accessKey: test-access-key
+    documentIndex: 2
+    asserts:
+      - isSubset:
+          path: spec.backup.storages
+          content:
+            my-release-catalog-backups:
+              type: azure
+              main: true
+              azure:
+                container: my-container
+                prefix: dremio/data/catalog-backups
+                credentialsSecret: my-release-mongodb-backup
+
+  - it: should configure Azure backup storage with entraID authentication (with secret)
+    set:
+      mongodb.backup.enabled: true
+      distStorage:
+        type: azureStorage
+        azureStorage:
+          accountName: mystorageaccount
+          filesystem: my-container
+          path: /dremio/data
+          authentication: entraID
+          credentials:
+            accessKey: test-access-key
+    documentIndex: 2
+    asserts:
+      - isSubset:
+          path: spec.backup.storages
+          content:
+            my-release-catalog-backups:
+              type: azure
+              main: true
+              azure:
+                container: my-container
+                prefix: dremio/data/catalog-backups
+                credentialsSecret: my-release-mongodb-backup
+
+  # Cluster Domain Tests
+  - it: should use default cluster domain for clusterServiceDNSSuffix
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: spec.clusterServiceDNSSuffix
+          value: svc.cluster.local
+
+  - it: should use custom cluster domain for clusterServiceDNSSuffix
+    set:
+      cluster.domain: custom.domain
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: spec.clusterServiceDNSSuffix
+          value: svc.custom.domain

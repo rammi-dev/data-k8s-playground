@@ -1,0 +1,171 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+suite: Dremio EE Helm Chart.Service Client Tests
+templates:
+  - dremio-service-client.yaml
+set:
+  distStorage:
+    type: gcp
+    gcp:
+      bucketName: test-bucket
+      authentication: auto
+      credentials:
+        clientEmail: test@example.com
+        privateKey: test-private-key
+tests:
+  - it: should create service with default LoadBalancer type
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+      - equal:
+          path: metadata.name
+          value: dremio-client
+
+  - it: should not include loadBalancerClass by default
+    documentIndex: 0
+    asserts:
+      - notExists:
+          path: spec.loadBalancerClass
+
+  - it: should not include loadBalancerIP by default
+    documentIndex: 0
+    asserts:
+      - notExists:
+          path: spec.loadBalancerIP
+
+  - it: should not include sessionAffinity by default
+    documentIndex: 0
+    asserts:
+      - notExists:
+          path: spec.sessionAffinity
+
+  - it: should include loadBalancerClass when specified for LoadBalancer service
+    documentIndex: 0
+    set:
+      service:
+        type: LoadBalancer
+        loadBalancerClass: "service.k8s.aws/nlb"
+    asserts:
+      - equal:
+          path: spec.loadBalancerClass
+          value: "service.k8s.aws/nlb"
+
+  - it: should include loadBalancerIP when specified for LoadBalancer service
+    documentIndex: 0
+    set:
+      service:
+        type: LoadBalancer
+        loadBalancerIP: "192.168.1.100"
+    asserts:
+      - equal:
+          path: spec.loadBalancerIP
+          value: "192.168.1.100"
+
+  - it: should include sessionAffinity when specified
+    documentIndex: 0
+    set:
+      service:
+        sessionAffinity: "ClientIP"
+    asserts:
+      - equal:
+          path: spec.sessionAffinity
+          value: "ClientIP"
+
+  - it: should include both loadBalancerClass and loadBalancerIP when both specified
+    documentIndex: 0
+    set:
+      service:
+        type: LoadBalancer
+        loadBalancerClass: "service.k8s.aws/nlb"
+        loadBalancerIP: "192.168.1.100"
+    asserts:
+      - equal:
+          path: spec.loadBalancerClass
+          value: "service.k8s.aws/nlb"
+      - equal:
+          path: spec.loadBalancerIP
+          value: "192.168.1.100"
+
+  - it: should not include loadBalancerClass for ClusterIP service
+    documentIndex: 0
+    set:
+      service:
+        type: ClusterIP
+        loadBalancerClass: "service.k8s.aws/nlb"
+    asserts:
+      - notExists:
+          path: spec.loadBalancerClass
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: should not include loadBalancerIP for ClusterIP service
+    documentIndex: 0
+    set:
+      service:
+        type: ClusterIP
+        loadBalancerIP: "192.168.1.100"
+    asserts:
+      - notExists:
+          path: spec.loadBalancerIP
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: should include all service configuration options when specified
+    documentIndex: 0
+    set:
+      service:
+        type: LoadBalancer
+        loadBalancerClass: "service.k8s.aws/nlb"
+        loadBalancerIP: "192.168.1.100"
+        sessionAffinity: "ClientIP"
+    asserts:
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+      - equal:
+          path: spec.loadBalancerClass
+          value: "service.k8s.aws/nlb"
+      - equal:
+          path: spec.loadBalancerIP
+          value: "192.168.1.100"
+      - equal:
+          path: spec.sessionAffinity
+          value: "ClientIP"
+
+  - it: should create dremio-cluster-pod service as second document
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: metadata.name
+          value: dremio-cluster-pod
+      - equal:
+          path: spec.clusterIP
+          value: None
+
+  - it: should include correct ports for dremio-client service
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.ports[0].name
+          value: client
+      - equal:
+          path: spec.ports[0].port
+          value: 31010
+      - equal:
+          path: spec.ports[1].name
+          value: web
+      - equal:
+          path: spec.ports[1].port
+          value: 9047
+      - equal:
+          path: spec.ports[2].name
+          value: flight
+      - equal:
+          path: spec.ports[2].port
+          value: 32010

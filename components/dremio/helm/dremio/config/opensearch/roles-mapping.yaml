@@ -1,0 +1,52 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+# Role mappings provided by opensearch by default are defined in:
+#   https://github.com/opensearch-project/security/blob/d2daa9870ca586d80588428d90caacd9739de583/config/roles_mapping.yml
+# Example in the operator:
+#   https://github.com/opensearch-project/opensearch-k8s-operator/blob/335eb90abc97598655d4127d9d7e140f6c933e36/opensearch-operator/examples/securityconfig-secret.yaml#L37
+_meta:
+  type: "rolesmapping"
+  config_version: 2
+
+# Maps coordinator service account to admin role.
+all_access:
+  reserved: false
+  backend_roles:
+  - "admin"
+  users:
+    - system:serviceaccount:<NAMESPACE>:<COORDINATOR_SERVICE_ACCOUNT>
+  description: "Maps admin to all_access"
+
+own_index:
+  reserved: false
+  users:
+  - "*"
+  description: "Allow full access to an index named like the username"
+
+logstash:
+  reserved: false
+  backend_roles:
+  - "logstash"
+
+kibana_user:
+  reserved: false
+  backend_roles:
+  - "kibanauser"
+  description: "Maps kibanauser to kibana_user"
+
+readall:
+  reserved: false
+  backend_roles:
+  - "readall"
+
+manage_snapshots:
+  reserved: false
+  backend_roles:
+  - "snapshotrestore"
+
+kibana_server:
+  reserved: true
+  users:
+  - "kibanaserver"

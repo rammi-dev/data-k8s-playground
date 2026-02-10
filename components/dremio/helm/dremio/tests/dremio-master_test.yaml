@@ -1,0 +1,788 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+suite: Dremio EE Helm Chart.Master Tests
+templates:
+  - dremio-configmap.yaml
+  - dremio-master.yaml
+set:
+  distStorage:
+    type: gcp
+    gcp:
+      bucketName: test-bucket
+      authentication: auto
+      credentials:
+        clientEmail: test@example.com
+        privateKey: test-private-key
+tests:
+  - it: should use default init container image
+    template: dremio-master.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: quay.io/dremio/busybox:1.37.0-glibc
+      - equal:
+          path: spec.template.spec.initContainers[0].imagePullPolicy
+          value: IfNotPresent
+      - equal:
+          path: spec.template.spec.initContainers[1].image
+          value: quay.io/dremio/busybox:1.37.0-glibc
+      - equal:
+          path: spec.template.spec.initContainers[1].imagePullPolicy
+          value: IfNotPresent
+  - it: should use custom init container image
+    template: dremio-master.yaml
+    set:
+      busyBox:
+        image:
+          repository: custom-image
+          tag: custom-tag
+          pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: custom-image:custom-tag
+      - equal:
+          path: spec.template.spec.initContainers[0].imagePullPolicy
+          value: Always
+      - equal:
+          path: spec.template.spec.initContainers[1].image
+          value: custom-image:custom-tag
+      - equal:
+          path: spec.template.spec.initContainers[1].imagePullPolicy
+          value: Always
+  - it: catalogservices should be excluded when feature is disabled (JVM options excluded)
+    template: dremio-master.yaml
+    set:
+      catalogservices:
+        enabled: false
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].env[2].value
+          pattern: dremiocatalog*
+  - it: JVM options for catalogservices should be included by default
+    template: dremio-master.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[2].value
+          pattern: dremiocatalog*
+  - it: should not set storageClassName for logs when no storageClass is defined
+    template: dremio-master.yaml
+    asserts:
+      - isNull:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+  - it: should write logs to file by default
+    template: dremio-master.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "0"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+            value: /opt/dremio/log
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+            mountPath: /opt/dremio/log
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 512Gi
+  - it: should write logs to file when global dremio.log.enabled is true
+    template: dremio-master.yaml
+    set:
+      dremio:
+        log:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "0"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+            value: /opt/dremio/log
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+            mountPath: /opt/dremio/log
+
+  - it: should not write logs to file when global dremio.log.enabled is false
+    template: dremio-master.yaml
+    set:
+      dremio:
+        log:
+          enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "1"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+  - it: should not write logs to file when coordinator.log.enabled is false
+    template: dremio-master.yaml
+    set:
+      coordinator:
+        log:
+          enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "1"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+
+  - it: should write logs to file when coordinator.log.enabled is true
+    template: dremio-master.yaml
+    set:
+      dremio:
+        log:
+          enabled: false
+      coordinator:
+        log:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+            value: /opt/dremio/log
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "0"
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+            mountPath: /opt/dremio/log
+
+  - it: should use custom log volume size when specified at coordinator level
+    template: dremio-master.yaml
+    set:
+      dremio:
+        log:
+          volume:
+            size: 100Gi
+      coordinator:
+        log:
+          volume:
+            size: 200Gi
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 200Gi
+  - it: should use default storage class when not specified
+    template: dremio-master.yaml
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 512Gi
+      - notExists:
+          path: spec.volumeClaimTemplates[?(@.metadata.name == "dremio-log-volume")].spec.storageClassName
+
+  - it: should use global storage class for log volume
+    template: dremio-master.yaml
+    set:
+      storageClass: fast-ssd
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 512Gi
+              storageClassName: fast-ssd
+  - it: should use dremio logs storage class when specified
+    template: dremio-master.yaml
+    set:
+      storageClass: fast-ssd
+      dremio:
+        log:
+          volume:
+            storageClass: premium-ssd
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 512Gi
+              storageClassName: premium-ssd
+  - it: should use coordinator logs storage class when specified
+    template: dremio-master.yaml
+    set:
+      storageClass: fast-ssd
+      dremio:
+        log:
+          volume:
+            storageClass: premium-ssd
+      coordinator:
+        log:
+          volume:
+            storageClass: ultra-ssd
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              storageClassName: ultra-ssd
+              resources:
+                requests:
+                  storage: 512Gi
+              accessModes:
+                - ReadWriteOnce
+  - it: should handle different volume size formats
+    template: dremio-master.yaml
+    set:
+      coordinator:
+        log:
+          volume:
+            size: "500Mi"
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: "500Mi"
+
+  - it: should handle large volume sizes
+    template: dremio-master.yaml
+    set:
+      coordinator:
+        log:
+          volume:
+            size: "1Ti"
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: "1Ti"
+
+  - it: should not specify storage class when none is configured
+    template: dremio-master.yaml
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes: [ "ReadWriteOnce" ]
+              resources:
+                requests:
+                  storage: 512Gi
+      - notExists:
+          path: spec.volumeClaimTemplates[?(@.metadata.name == "dremio-log-volume")].spec.storageClassName
+
+  # Global storage class tests
+  - it: should use global storage class for log volume when specified
+    template: dremio-master.yaml
+    set:
+      storageClass: fast-ssd
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 512Gi
+              storageClassName: fast-ssd
+
+  - it: should use global storage class with different values
+    template: dremio-master.yaml
+    set:
+      storageClass: premium-storage
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 512Gi
+              storageClassName: premium-storage
+  - it: should prioritize dremio logs storage class over global storage class
+    template: dremio-master.yaml
+    set:
+      storageClass: global-storage
+      dremio:
+        log:
+          volume:
+            storageClass: dremio-specific-storage
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 512Gi
+              storageClassName: dremio-specific-storage
+      - notContains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-specific-storage
+  # Coordinator-level logs storage class tests
+  - it: should use coordinator logs storage class when specified
+    template: dremio-master.yaml
+    set:
+      storageClass: global-storage
+      dremio:
+        log:
+          volume:
+            storageClass: dremio-logs-storage
+      coordinator:
+        log:
+          volume:
+            storageClass: coordinator-logs-storage
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 512Gi
+              storageClassName: coordinator-logs-storage
+
+  - it: should prioritize coordinator logs storage class over all other levels
+    template: dremio-master.yaml
+    set:
+      storageClass: global-storage
+      dremio:
+        log:
+          volume:
+            storageClass: dremio-logs-storage
+      coordinator:
+        log:
+          volume:
+            storageClass: coordinator-specific-storage
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 512Gi
+              storageClassName: coordinator-specific-storage
+      - notContains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              storageClassName: dremio-logs-storage
+      - notContains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              storageClassName: global-storage
+
+  # Storage class inheritance hierarchy tests
+  - it: should fall back to dremio logs storage class when coordinator is not specified
+    template: dremio-master.yaml
+    set:
+      storageClass: global-storage
+      dremio:
+        log:
+          volume:
+            storageClass: dremio-fallback-storage
+      coordinator:
+        log:
+          volume: { }  # Empty volume config
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 512Gi
+              storageClassName: dremio-fallback-storage
+
+  - it: should fall back to global storage class when dremio logs is not specified
+    template: dremio-master.yaml
+    set:
+      storageClass: global-fallback-storage
+      dremio:
+        log: { }  # Empty logs config
+      coordinator:
+        log:
+          volume: { }  # Empty volume config
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: dremio-log-volume
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 512Gi
+              storageClassName: global-fallback-storage
+
+  # Null and empty value handling
+  - it: should handle null storage class values correctly
+    template: dremio-master.yaml
+    set:
+      storageClass: null
+      dremio:
+        log:
+          volume:
+            storageClass: null
+      coordinator:
+        logs:
+          volume:
+            storageClass: null
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates[?(@.metadata.name == "dremio-log-volume")].spec.storageClassName
+
+  - it: should handle empty string storage class values correctly
+    template: dremio-master.yaml
+    set:
+      storageClass: ""
+      dremio:
+        log:
+          volume:
+            storageClass: ""
+      coordinator:
+        logs:
+          volume:
+            storageClass: ""
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates[?(@.metadata.name == "dremio-log-volume")].spec.storageClassName
+  - it: should write logs to file when global writeLogsToFile is explicitly true
+    template: dremio-master.yaml
+    set:
+      writeLogsToFile: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "0"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+            value: /opt/dremio/log
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+            mountPath: /opt/dremio/log
+
+  - it: should not write logs to file when global writeLogsToFile is false
+    template: dremio-master.yaml
+    set:
+      writeLogsToFile: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "1"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+
+  # Coordinator-specific writeLogsToFile configuration tests
+  - it: should write logs to file when coordinator writeLogsToFile is true
+    template: dremio-master.yaml
+    set:
+      coordinator:
+        writeLogsToFile: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "0"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+            value: /opt/dremio/log
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+            mountPath: /opt/dremio/log
+
+  - it: should not write logs to file when coordinator writeLogsToFile is false
+    template: dremio-master.yaml
+    set:
+      coordinator:
+        writeLogsToFile: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "1"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+
+  # Precedence tests - coordinator overrides global
+  - it: should prioritize coordinator writeLogsToFile over global setting (coordinator true, global false)
+    template: dremio-master.yaml
+    set:
+      writeLogsToFile: false
+      coordinator:
+        writeLogsToFile: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "0"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+            value: /opt/dremio/log
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+            mountPath: /opt/dremio/log
+
+  - it: should prioritize coordinator writeLogsToFile over global setting (coordinator false, global true)
+    template: dremio-master.yaml
+    set:
+      writeLogsToFile: true
+      coordinator:
+        writeLogsToFile: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "1"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+
+  # Environment variable validation tests
+  - it: should set DREMIO_LOG_TO_CONSOLE to "0" when writeLogsToFile is true
+    template: dremio-master.yaml
+    set:
+      writeLogsToFile: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "0"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "1"
+
+  - it: should set DREMIO_LOG_TO_CONSOLE to "1" when writeLogsToFile is false
+    template: dremio-master.yaml
+    set:
+      writeLogsToFile: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "1"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_TO_CONSOLE
+            value: "0"
+
+  - it: should set DREMIO_LOG_DIR when writeLogsToFile is true
+    template: dremio-master.yaml
+    set:
+      writeLogsToFile: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+            value: /opt/dremio/log
+
+  - it: should not set DREMIO_LOG_DIR when writeLogsToFile is false
+    template: dremio-master.yaml
+    set:
+      writeLogsToFile: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DREMIO_LOG_DIR
+
+  # Volume mount behavior tests
+  - it: should include log volume mount when writeLogsToFile is true
+    template: dremio-master.yaml
+    set:
+      writeLogsToFile: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+            mountPath: /opt/dremio/log
+
+  - it: should not include log volume mount when writeLogsToFile is false
+    template: dremio-master.yaml
+    set:
+      writeLogsToFile: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+
+  - it: should include log volume mount when coordinator writeLogsToFile overrides global false
+    template: dremio-master.yaml
+    set:
+      writeLogsToFile: false
+      coordinator:
+        writeLogsToFile: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume
+            mountPath: /opt/dremio/log
+
+  - it: should not include log volume mount when coordinator writeLogsToFile overrides global true
+    template: dremio-master.yaml
+    set:
+      writeLogsToFile: true
+      coordinator:
+        writeLogsToFile: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dremio-log-volume

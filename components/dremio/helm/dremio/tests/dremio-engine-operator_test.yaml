@@ -1,0 +1,729 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+suite: Dremio EE Helm Chart.Engine Operator Tests
+templates:
+  - dremio-engine-operator.yaml
+set:
+  distStorage:
+    type: gcp
+    gcp:
+      bucketName: test-bucket
+      authentication: auto
+      credentials:
+        clientEmail: test@example.com
+        privateKey: test-private-key
+tests:
+  - it: engine.operator.podAnnotations should append pod annotations
+    documentIndex: 1
+    set:
+      podAnnotations:
+        root: test
+      engine:
+        operator:
+          podAnnotations:
+            engine: test
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.engine
+          value: test
+  - it: pod annotations should apply when set at root level
+    documentIndex: 1
+    set:
+      podAnnotations:
+        root: test
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.root
+          value: test
+  - it: should not include nodeSelectors by default
+    documentIndex: 1
+    asserts:
+      - notExists:
+          path: spec.template.spec.nodeSelector
+  - it: engine.operator.nodeSelector should take priority over nodeSelector
+    documentIndex: 1
+    set:
+      engine:
+        operator:
+          nodeSelector:
+            engineOperatorSelector: engineOperatorSelector
+      nodeSelector:
+        testSelector: testSelector
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            engineOperatorSelector: engineOperatorSelector
+  - it: nodeSelector should apply when set at root level
+    documentIndex: 1
+    set:
+      nodeSelector:
+        testSelector: testSelector
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            testSelector: testSelector
+  - it: engine.operator.tolerations should apply tolerations
+    documentIndex: 1
+    set:
+      tolerations: [ { key: "root", operator: "Equal", value: "value1", effect: "NoSchedule" } ]
+      engine:
+        operator:
+          tolerations: [ { key: "operator", operator: "Equal", value: "value1", effect: "NoSchedule" } ]
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value: [ { key: "operator", operator: "Equal", value: "value1", effect: "NoSchedule" } ]
+  - it: tolerations should be applied when set at root level
+    documentIndex: 1
+    set:
+      tolerations: [ { key: "root", operator: "Equal", value: "value1", effect: "NoSchedule" } ]
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations
+          value: [ { key: "root", operator: "Equal", value: "value1", effect: "NoSchedule" } ]
+  - it: metadata.annotations should be empty by default
+    documentIndex: 1
+    asserts:
+      - notExists:
+          path: metadata.annotations
+  - it: engine.operator.annotations should set metadata.annotations
+    documentIndex: 1
+    set:
+      annotations:
+        rootAnnotation: test
+      engine:
+        operator:
+          annotations:
+            engineOperator: test
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            engineOperator: test
+  - it: metadata.annotations should be apply when set at root level
+    documentIndex: 1
+    set:
+      annotations:
+        rootAnnotation: test
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            rootAnnotation: test
+  - it: engine.operator.podLabels should apply podLabels
+    documentIndex: 1
+    set:
+      podLabels:
+        root: test
+      engine:
+        operator:
+          podLabels:
+            engine: test
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.engine
+          value: test
+  - it: podLabels should be applied when set at root level
+    documentIndex: 1
+    set:
+      podLabels:
+        root: test
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.root
+          value: test
+
+  # Probe Tests - Testing the executor StatefulSet template in the ConfigMap
+  - it: should have default startup probe configuration in executor template
+    documentIndex: 7
+    asserts:
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "startupProbe:"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "initialDelaySeconds: 10"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "failureThreshold: 36"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "periodSeconds: 5"
+
+  - it: should have default liveness probe configuration in executor template
+    documentIndex: 7
+    asserts:
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "livenessProbe:"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "failureThreshold: 30"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "periodSeconds: 10"
+
+  - it: should allow custom startup probe configuration in executor template
+    documentIndex: 7
+    set:
+      engine:
+        executor:
+          probes:
+            startup:
+              initialDelaySeconds: 820
+              failureThreshold: 850
+              periodSeconds: 88
+    asserts:
+      # startup custom
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "initialDelaySeconds: 820"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "failureThreshold: 850"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "periodSeconds: 88"
+      # liveness default
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "failureThreshold: 30"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "periodSeconds: 10"
+
+  - it: should allow custom liveness probe configuration in executor template
+    documentIndex: 7
+    set:
+      engine:
+        executor:
+          probes:
+            liveness:
+              failureThreshold: 915
+              periodSeconds: 920
+    asserts:
+      # liveness custom
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "failureThreshold: 915"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "periodSeconds: 920"
+      # start-up default
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "initialDelaySeconds: 10"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "failureThreshold: 36"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "periodSeconds: 5"
+
+  - it: should configure both startup and liveness probes simultaneously in executor template
+    documentIndex: 7
+    set:
+      engine:
+        executor:
+          probes:
+            startup:
+              initialDelaySeconds: 515
+              failureThreshold: 540
+              periodSeconds: 56
+            liveness:
+              failureThreshold: 525
+              periodSeconds: 512
+    asserts:
+      # Startup custom
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "initialDelaySeconds: 515"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "failureThreshold: 540"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "periodSeconds: 56"
+      # Liveness custom
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "failureThreshold: 525"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "periodSeconds: 512"
+
+  - it: should use correct probe endpoints and ports in executor template
+    documentIndex: 7
+    asserts:
+      # Verify startup probe uses /live endpoint on port 9010
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "startupProbe:\\s*httpGet:\\s*path: /live\\s*port: 9010"
+      # Verify liveness probe uses /live endpoint on port 9010
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "livenessProbe:\\s*httpGet:\\s*path: /live\\s*port: 9010"
+
+  # Storage Class Tests for dremio-log-volume
+  - it: should not specify storage class for dremio-log-volume when none is configured
+    documentIndex: 7
+    asserts:
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "name: dremio-log-volume"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "accessModes: \\[ \"ReadWriteOnce\" \\]"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "storage: 10Gi"
+      - notMatchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "storageClassName:"
+
+  - it: should use engine.executor.volumes.log.pvc.storageClass when specified
+    documentIndex: 7
+    set:
+      engine:
+        executor:
+          volumes:
+            log:
+              pvc:
+                storageClass: engine-log-storage
+    asserts:
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "name: dremio-log-volume"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "storageClassName: engine-log-storage"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "storage: 10Gi"
+
+  - it: should use engine.executor.volumes.log.size when specified
+    documentIndex: 7
+    set:
+      engine:
+        executor:
+          volumes:
+            log:
+              size: 100Gi
+    asserts:
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "name: dremio-log-volume"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "storage: 100Gi"
+
+  # podSecurityContext Tests
+  - it: should have default podSecurityContext for engine operator
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            fsGroup: 999
+            fsGroupChangePolicy: OnRootMismatch
+  - it: should override podSecurityContext for engine operator
+    documentIndex: 1
+    set:
+      engine:
+        operator:
+          podSecurityContext:
+            runAsUser: 1001
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            fsGroup: 999
+            fsGroupChangePolicy: OnRootMismatch
+            runAsUser: 1001
+  - it: should use root podSecurityContext for engine operator when operator's is null
+    documentIndex: 1
+    set:
+      engine:
+        operator:
+          podSecurityContext: null
+      podSecurityContext:
+        runAsUser: 1002
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            fsGroup: 999
+            fsGroupChangePolicy: OnRootMismatch
+            runAsUser: 1002
+  - it: should have default podSecurityContext for engine operator when both are not set
+    documentIndex: 1
+    set:
+      engine:
+        operator:
+          podSecurityContext: null
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            fsGroup: 999
+            fsGroupChangePolicy: OnRootMismatch
+
+  # containerSecurityContext Tests
+  - it: should have default containerSecurityContext for engine operator
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsGroup: 999
+            runAsNonRoot: true
+            runAsUser: 999
+            seccompProfile:
+              type: RuntimeDefault
+  - it: should override containerSecurityContext for engine operator
+    documentIndex: 1
+    set:
+      engine:
+        operator:
+          containerSecurityContext:
+            runAsUser: 2001
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsGroup: 999
+            runAsNonRoot: true
+            runAsUser: 2001
+            seccompProfile:
+              type: RuntimeDefault
+  - it: should use root containerSecurityContext for engine operator when operator's is null
+    documentIndex: 1
+    set:
+      engine:
+        operator:
+          containerSecurityContext: null
+      containerSecurityContext:
+        runAsUser: 2002
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsGroup: 999
+            runAsNonRoot: true
+            runAsUser: 2002
+            seccompProfile:
+              type: RuntimeDefault
+  - it: should have default containerSecurityContext for engine operator when operator and root values are null
+    documentIndex: 1
+    set:
+      engine:
+        operator:
+          containerSecurityContext: null
+      containerSecurityContext: null
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsGroup: 999
+            runAsNonRoot: true
+            runAsUser: 999
+            seccompProfile:
+              type: RuntimeDefault
+
+  - it: should not include extra init containers by default
+    documentIndex: 7
+    asserts:
+      - notMatchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "name: extra-init-container"
+
+  - it: should include extra init containers from engine.executor level
+    documentIndex: 7
+    set:
+      engine:
+        executor:
+          extraInitContainers:
+            - name: extra-init-container
+              image: extra-init-container-image
+              command: ["sh", "-c", "echo 'Hello {{ .Release.Name }}'"]
+    asserts:
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "name: extra-init-container"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "image: extra-init-container-image"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "echo 'Hello RELEASE-NAME'"
+
+  - it: should include extra init containers from root level (as string)
+    documentIndex: 7
+    set:
+      extraInitContainers: >
+        - name: extra-init-container
+          image: extra-init-container-image
+          command: ["sh", "-c", "echo 'Hello {{ .Release.Name }}'"]
+    asserts:
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "name: extra-init-container"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "image: extra-init-container-image"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "echo 'Hello RELEASE-NAME'"
+
+  - it: should include extra init containers from engine.executor level when both are defined
+    documentIndex: 7
+    set:
+      extraInitContainers: >
+        - name: extra-init-container-root
+          image: extra-init-container-image-root
+          command: [ "sh", "-c", "echo 'Hello {{ .Release.Name }}' from root" ]
+      engine:
+        executor:
+          extraInitContainers:
+            - name: extra-init-container-executor
+              image: extra-init-container-image-executor
+              command: ["sh", "-c", "echo 'Hello {{ .Release.Name }}' from executor"]
+    asserts:
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "name: extra-init-container-executor"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "image: extra-init-container-image-executor"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "echo 'Hello RELEASE-NAME' from executor"
+      - notMatchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "name: extra-init-container-root"
+
+  - it: should include extra init containers as YAML array
+    documentIndex: 7
+    set:
+      engine:
+        executor:
+          extraInitContainers:
+            - name: init-container-1
+              image: init-image-1
+              command: ["echo", "first"]
+            - name: init-container-2
+              image: init-image-2
+              command: ["echo", "second"]
+    asserts:
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "name: init-container-1"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "image: init-image-1"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "name: init-container-2"
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "image: init-image-2"
+
+  # OpenShift Security Context Tests
+  - it: should set runAsUser, runAsGroup and fsGroup to null when using OpenShift overrides for podSecurityContext
+    documentIndex: 1
+    set:
+      engine:
+        operator:
+          podSecurityContext:
+            runAsUser: null
+            runAsGroup: null
+            fsGroup: null
+            fsGroupChangePolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            runAsUser: null
+            runAsGroup: null
+            fsGroupChangePolicy: Always
+
+  - it: should override containerSecurityContext for engine operator with OpenShift values
+    documentIndex: 1
+    set:
+      engine:
+        operator:
+          containerSecurityContext:
+            runAsUser: null
+            runAsGroup: null
+            fsGroup: null
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            fsGroup: null
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+
+  - it: should apply complete OpenShift security context configuration for engine operator
+    documentIndex: 1
+    set:
+      # Simulate the values-openshift-overrides.yaml configuration
+      podSecurityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containerSecurityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        privileged: false
+        readOnlyRootFilesystem: false
+        runAsNonRoot: true
+      engine:
+        operator:
+          podSecurityContext:
+            runAsUser: null
+            runAsGroup: null
+            fsGroup: null
+            fsGroupChangePolicy: Always
+          containerSecurityContext:
+            runAsUser: null
+            runAsGroup: null
+            fsGroup: null
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            runAsUser: null
+            runAsGroup: null
+            fsGroupChangePolicy: Always
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            fsGroup: null
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+
+  # PriorityClassName tests
+  - it: should not include priorityClassName by default
+    documentIndex: 1
+    asserts:
+      - notExists:
+          path: spec.template.spec.priorityClassName
+  - it: engine.operator.priorityClassName should set priorityClassName
+    documentIndex: 1
+    set:
+      engine:
+        operator:
+          priorityClassName: engine-operator-priority
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: engine-operator-priority
+  - it: should not include priorityClassName when engine.operator.priorityClassName is empty
+    documentIndex: 1
+    set:
+      engine:
+        operator:
+          priorityClassName: ""
+    asserts:
+      - notExists:
+          path: spec.template.spec.priorityClassName
+
+  # Engine Executor PriorityClassName tests - Testing the executor StatefulSet template in the ConfigMap
+  - it: should not include priorityClassName by default in executor template
+    documentIndex: 7
+    asserts:
+      - notMatchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "priorityClassName:"
+  - it: engine.executor.priorityClassName should set priorityClassName in executor template
+    documentIndex: 7
+    set:
+      engine:
+        executor:
+          priorityClassName: executor-high-priority
+    asserts:
+      - matchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "priorityClassName: executor-high-priority"
+  - it: should not include priorityClassName when engine.executor.priorityClassName is empty in executor template
+    documentIndex: 7
+    set:
+      engine:
+        executor:
+          priorityClassName: ""
+    asserts:
+      - notMatchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "priorityClassName:"
+  - it: should not include priorityClassName when engine.executor.priorityClassName is null in executor template
+    documentIndex: 7
+    set:
+      engine:
+        executor:
+          priorityClassName: null
+    asserts:
+      - notMatchRegex:
+          path: data["executor-statefulset-template.yaml"]
+          pattern: "priorityClassName:"

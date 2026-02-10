@@ -1,0 +1,266 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+suite: Dremio EE Helm Chart.Dremio Admin Tests
+templates:
+  - dremio-admin.yaml
+set:
+  distStorage:
+    type: gcp
+    gcp:
+      bucketName: test-bucket
+      authentication: auto
+      credentials:
+        clientEmail: test@example.com
+        privateKey: test-private-key
+tests:
+  - it: should not include extra volumes and volume mounts by default
+    set:
+      DremioAdmin: true
+    asserts:
+      - notContains:
+          path: spec.containers[0].volumeMounts
+          content:
+            name: extra-volume
+      - notContains:
+          path: spec.volumes
+          content:
+            name: extra-volume
+
+  - it: should include extra volumes and volume mounts when configured
+    set:
+      DremioAdmin: true
+      coordinator:
+        extraVolumes:
+          - name: extra-volume
+            emptyDir: {}
+        extraVolumeMounts:
+          - name: extra-volume
+            mountPath: /extra
+            readOnly: false
+    asserts:
+      - contains:
+          path: spec.containers[0].volumeMounts
+          content:
+            name: extra-volume
+            mountPath: /extra
+            readOnly: false
+      - contains:
+          path: spec.volumes
+          content:
+            name: extra-volume
+            emptyDir: {}
+
+  - it: should include multiple extra volumes and volume mounts
+    set:
+      DremioAdmin: true
+      coordinator:
+        extraVolumes:
+          - name: config-volume
+            configMap:
+              name: my-config
+          - name: secret-volume
+            secret:
+              secretName: my-secret
+        extraVolumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+            readOnly: true
+          - name: secret-volume
+            mountPath: /etc/secrets
+            readOnly: true
+    asserts:
+      - contains:
+          path: spec.containers[0].volumeMounts
+          content:
+            name: config-volume
+            mountPath: /etc/config
+            readOnly: true
+      - contains:
+          path: spec.containers[0].volumeMounts
+          content:
+            name: secret-volume
+            mountPath: /etc/secrets
+            readOnly: true
+      - contains:
+          path: spec.volumes
+          content:
+            name: config-volume
+            configMap:
+              name: my-config
+      - contains:
+          path: spec.volumes
+          content:
+            name: secret-volume
+            secret:
+              secretName: my-secret
+
+  - it: should inherit extraVolumes from root level when coordinator level not set
+    set:
+      DremioAdmin: true
+      extraVolumes:
+        - name: root-volume
+          emptyDir: {}
+      extraVolumeMounts:
+        - name: root-volume
+          mountPath: /root-mount
+    asserts:
+      - contains:
+          path: spec.containers[0].volumeMounts
+          content:
+            name: root-volume
+            mountPath: /root-mount
+      - contains:
+          path: spec.volumes
+          content:
+            name: root-volume
+            emptyDir: {}
+
+  - it: should prioritize coordinator extraVolumes over root level
+    set:
+      DremioAdmin: true
+      extraVolumes:
+        - name: root-volume
+          emptyDir: {}
+      extraVolumeMounts:
+        - name: root-volume
+          mountPath: /root-mount
+      coordinator:
+        extraVolumes:
+          - name: coordinator-volume
+            emptyDir: {}
+        extraVolumeMounts:
+          - name: coordinator-volume
+            mountPath: /coordinator-mount
+    asserts:
+      - contains:
+          path: spec.containers[0].volumeMounts
+          content:
+            name: coordinator-volume
+            mountPath: /coordinator-mount
+      - contains:
+          path: spec.volumes
+          content:
+            name: coordinator-volume
+            emptyDir: {}
+      - notContains:
+          path: spec.containers[0].volumeMounts
+          content:
+            name: root-volume
+      - notContains:
+          path: spec.volumes
+          content:
+            name: root-volume
+
+  # PriorityClassName tests
+  - it: should not include priorityClassName by default
+    set:
+      DremioAdmin: true
+    asserts:
+      - notExists:
+          path: spec.priorityClassName
+  - it: coordinator.priorityClassName should set priorityClassName for admin pod
+    set:
+      DremioAdmin: true
+      coordinator:
+        priorityClassName: admin-high-priority
+    asserts:
+      - equal:
+          path: spec.priorityClassName
+          value: admin-high-priority
+  - it: should not include priorityClassName when coordinator.priorityClassName is empty
+    set:
+      DremioAdmin: true
+      coordinator:
+        priorityClassName: ""
+    asserts:
+      - notExists:
+          path: spec.priorityClassName
+  # Init Containers tests
+  - it: should have empty initContainers by default
+    set:
+      DremioAdmin: true
+    asserts:
+      - isNull:
+          path: spec.initContainers
+
+  - it: should include coordinator-level extraInitContainers as string template
+    set:
+      DremioAdmin: true
+      coordinator:
+        extraInitContainers: |
+          - name: coordinator-init
+            image: busybox:latest
+            command: ["echo", "coordinator init"]
+    asserts:
+      - contains:
+          path: spec.initContainers
+          content:
+            name: coordinator-init
+            image: busybox:latest
+            command: ["echo", "coordinator init"]
+
+  - it: should include root-level extraInitContainers as string template when coordinator not set
+    set:
+      DremioAdmin: true
+      extraInitContainers: |
+        - name: root-init
+          image: busybox:latest
+          command: ["echo", "root init"]
+    asserts:
+      - contains:
+          path: spec.initContainers
+          content:
+            name: root-init
+            image: busybox:latest
+            command: ["echo", "root init"]
+
+  - it: should prioritize coordinator extraInitContainers over root level
+    set:
+      DremioAdmin: true
+      extraInitContainers: |
+        - name: root-init
+          image: busybox:latest
+          command: ["echo", "root init"]
+      coordinator:
+        extraInitContainers: |
+          - name: coordinator-init
+            image: busybox:latest
+            command: ["echo", "coordinator init"]
+    asserts:
+      - contains:
+          path: spec.initContainers
+          content:
+            name: coordinator-init
+            image: busybox:latest
+            command: ["echo", "coordinator init"]
+      - notContains:
+          path: spec.initContainers
+          content:
+            name: root-init
+
+  - it: should handle multiple extraInitContainers in string template
+    set:
+      DremioAdmin: true
+      coordinator:
+        extraInitContainers: |
+          - name: init-1
+            image: busybox:latest
+            command: ["echo", "first init"]
+          - name: init-2
+            image: alpine:latest
+            command: ["echo", "second init"]
+    asserts:
+      - contains:
+          path: spec.initContainers
+          content:
+            name: init-1
+            image: busybox:latest
+            command: ["echo", "first init"]
+      - contains:
+          path: spec.initContainers
+          content:
+            name: init-2
+            image: alpine:latest
+            command: ["echo", "second init"]

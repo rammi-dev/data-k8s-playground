@@ -1,0 +1,146 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.mongodb.serviceAccount }}
+  namespace: {{ .Release.Namespace }}
+  {{- with .Values.mongodb.serviceAccountAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- include "dremio.imagePullSecrets" $ }}
+---
+{{- if not ( lookup "v1" "Secret" .Release.Namespace ( include "dremio.mongodb.userSecret" . ) ) }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "dremio.mongodb.userSecret" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+type: Opaque
+stringData:
+  {{ include "dremio.mongodb.user" . }}: "{{ randAlphaNum 32 }}"
+{{- end }}
+---
+apiVersion: psmdb.dremio.com/v1
+kind: PerconaServerMongoDB
+metadata:
+  name: {{ include "dremio.mongodb.cluster" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: dremio
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app-group: dremio
+    {{- if .Values.mongodb.labels }}
+    {{- tpl (toYaml .Values.mongodb.labels) . | nindent 4 }}
+    {{- end }}
+  {{- include "dremio.mongodb.annotations" $ | nindent 2 }}
+spec:
+  crVersion: 1.21.1
+  clusterServiceDNSSuffix: {{ printf "svc.%s" $.Values.cluster.domain }}
+  image: {{ $.Values.mongodb.image.repository }}:{{ $.Values.mongodb.image.tag }}
+  imagePullPolicy: {{ $.Values.mongodb.image.pullPolicy }}
+  {{- include "dremio.mongodb.unsafeFlags" $ | nindent 2 }}
+  tls:
+    mode: {{ include "dremio.mongodb.tlsMode" . }}
+  {{- include "dremio.mongodb.initContainerSecurityContext" $ | nindent 2 }}
+  updateStrategy: SmartUpdate
+  upgradeOptions:
+    # No automatic upgrades
+    apply: Disabled # Recommended, Latest, Disabled
+  secrets:
+    users: {{ include "dremio.mongodb.cluster" . }}-system-users
+  users:
+    - name: {{ include "dremio.mongodb.user" . }}
+      db: {{ include "dremio.mongodb.db" . }}
+      passwordSecretRef:
+        name: {{ include "dremio.mongodb.userSecret" . }}
+        key: {{ include "dremio.mongodb.user" . }}
+      roles:
+        - name: readWrite
+          db: {{ include "dremio.mongodb.db" . }}
+  enableVolumeExpansion: {{ .Values.mongodb.enableVolumeExpansion }}
+  replsets:
+    - name: rs0
+      size: {{ .Values.mongodb.replicaCount }}
+      serviceAccountName: {{ .Values.mongodb.serviceAccount }}
+      resources:
+        {{- tpl (toYaml .Values.mongodb.resources) . | nindent 8 }}
+      {{- include "dremio.mongodb.priorityClassName" $ | nindent 6 }}
+      {{- include "dremio.mongodb.podLabels" $ | nindent 6 }}
+      annotations:
+        metrics.dremio.com/scrape: "true"
+        metrics.dremio.com/port: {{ include "dremio.mongodb.ports.metrics.internal" . | quote }}
+        metrics.dremio.com/path: "/metrics"
+        {{- include "dremio.mongodb.podAnnotations" $ | nindent 8 }}
+      {{- include "dremio.mongodb.nodeSelector" $ | nindent 6 }}
+      {{- include "dremio.mongodb.tolerations" $ | nindent 6 }}
+      {{- if .Values.mongodb.affinity }}
+      affinity:
+        {{- tpl (toYaml .Values.mongodb.affinity) . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.mongodb.topologySpreadConstraints }}
+      topologySpreadConstraints:
+      {{- range . }}
+        - {{ tpl (toYaml .) . | indent 10 | trim }}
+      {{- end }}
+      {{- end }}
+      {{- if .Values.mongodb.podDisruptionBudget }}
+      podDisruptionBudget:
+        {{- tpl (toYaml .Values.mongodb.podDisruptionBudget) . | nindent 8 }}
+      {{- end }}
+      {{- include "dremio.mongodb.podSecurityContext" $ | nindent 6 }}
+      {{- include "dremio.mongodb.containerSecurityContext" $ | nindent 6 }}
+      volumeSpec:
+        persistentVolumeClaim:
+          {{- tpl (toYaml .Values.mongodb.storage) . | nindent 10 }}
+          {{- include "dremio.mongodb.storageClass" $ | nindent 10 }}
+      sidecars:
+      - image: {{ tpl .Values.mongodb.metrics.image.repository . }}:{{ tpl .Values.mongodb.metrics.image.tag . }}
+        name: {{ include "dremio.mongodb.cluster" . }}-metrics-exporter
+        imagePullPolicy: {{ $.Values.mongodb.metrics.image.pullPolicy }}
+        resources:
+          {{- tpl (toYaml .Values.mongodb.metrics.resources) . | nindent 10 }}
+        {{- include "dremio.mongodb.sidecarContainerSecurityContext" $ | nindent 8 }}
+        env:
+        - name: MONGODB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "dremio.mongodb.monitorUserSecret" . }}
+              key: {{ include "dremio.mongodb.monitorUserKey" . }}
+        - name: MONGODB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "dremio.mongodb.monitorUserSecret" . }}
+              key: {{ include "dremio.mongodb.monitorPasswordKey" . }}
+        args: ["--discovering-mode", "--collector.collstats-enable-details", "--collect-all", "--mongodb.uri=mongodb://127.0.0.1:27017", "--mongodb.user=$(MONGODB_USERNAME)", "--mongodb.password=$(MONGODB_PASSWORD)"]
+        ports:
+          - containerPort: {{ include "dremio.mongodb.ports.metrics.internal" . }}
+            name: metrics-mgmt
+  {{- if .Values.mongodb.backup.enabled }}
+  backup:
+    enabled: true
+    image: {{ .Values.mongodb.backup.image.repository }}:{{ .Values.mongodb.backup.image.tag }}
+    storages:
+      {{- include "dremio.mongodb.backup.storage" . | nindent 6 }}
+    tasks:
+      - name: {{ include "dremio.mongodb.backup.storage.name" $ }}
+        enabled: true
+        storageName: {{ include "dremio.mongodb.backup.storage.name" $ }}
+        type: {{ .Values.mongodb.backup.type }}
+        schedule: {{ .Values.mongodb.backup.schedule | quote }}
+        keep: {{ .Values.mongodb.backup.keep }}
+        compressionType: {{ .Values.mongodb.backup.compressionType | quote }}
+        compressionLevel: {{ .Values.mongodb.backup.compressionLevel }}
+    pitr:
+      {{- tpl (toYaml .Values.mongodb.backup.pitr) . | nindent 6 }}
+    configuration:
+      {{- tpl (toYaml .Values.mongodb.backup.configuration) . | nindent 6 }}
+    resources:
+      {{- tpl (toYaml .Values.mongodb.backup.resources) . | nindent 6 }}
+    {{- include "dremio.mongodb.backup.containerSecurityContext" $ | nindent 4 }}
+  {{- end }}

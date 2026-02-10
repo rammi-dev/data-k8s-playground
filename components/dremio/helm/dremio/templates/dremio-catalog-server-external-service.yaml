@@ -1,0 +1,49 @@
+#
+# Copyright (C) 2017-2019 Dremio Corporation. This file is confidential and private property.
+#
+
+{{- if .Values.catalog.externalAccess.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dremio.catalog.app.name" $ }}-external
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: dremio
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app: {{ include "dremio.catalog.app.name" $ }}
+    app-group: dremio
+    catalog-type: external
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ include "dremio.catalog.app.name" $ }}
+    catalog-type: external
+  ports:
+    - name: cat-http-ext
+      port: {{ include "dremio.catalog.ports.http.external" $ }}
+      protocol: TCP
+  sessionAffinity: None
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dremio.catalog.app.name" $ }}-external-mgmt
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: dremio
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app: {{ include "dremio.catalog.app.name" $ }}
+    app-group: dremio
+    catalog-type: external
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: {{ include "dremio.catalog.app.name" $ }}
+    catalog-type: external
+  ports:
+    - name: cat-mgmt-ext
+      port: {{ include "dremio.catalog.ports.mgmt.external" $ }}
+      protocol: TCP
+{{- end }}
