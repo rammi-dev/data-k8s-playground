@@ -1,0 +1,15 @@
+# S3 user for Dremio Catalog server (Polaris / Open Catalog)
+# Secret: rook-ceph-object-user-s3-store-dremio-catalog (AccessKey, SecretKey)
+# Target bucket: dremio-catalog
+# Used by: catalog-server pods
+# Injected via: pre-created secret catalog-server-s3-storage-creds
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStoreUser
+metadata:
+  name: dremio-catalog
+spec:
+  store: s3-store
+  displayName: "Dremio Catalog (Polaris)"
+  capabilities:
+    user: "*"
+    bucket: "*"

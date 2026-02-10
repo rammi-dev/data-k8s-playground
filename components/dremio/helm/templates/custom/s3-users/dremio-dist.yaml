@@ -1,0 +1,15 @@
+# S3 user for Dremio distributed storage + MongoDB backup
+# Secret: rook-ceph-object-user-s3-store-dremio-dist (AccessKey, SecretKey)
+# Target bucket: dremio
+# Used by: coordinator, executor, MongoDB backup (PBM)
+# Injected via: helm --set distStorage.aws.credentials.*
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStoreUser
+metadata:
+  name: dremio-dist
+spec:
+  store: s3-store
+  displayName: "Dremio Distributed Storage"
+  capabilities:
+    user: "*"
+    bucket: "*"

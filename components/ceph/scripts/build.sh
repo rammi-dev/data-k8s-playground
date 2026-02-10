@@ -185,22 +185,20 @@ for i in {1..20}; do
     sleep 15
 done
 
-# Create S3 admin user (apply extra manifests from helm/templates/)
-print_info "Applying extra manifests..."
-for manifest in "$HELM_DIR"/templates/*.yaml; do
-    [[ -f "$manifest" ]] || continue
-    kubectl -n "$CEPH_NAMESPACE" apply -f "$manifest"
+# Apply custom manifests (S3 users, etc.)
+print_info "Applying custom manifests..."
+kubectl -n "$CEPH_NAMESPACE" apply -R -f "$HELM_DIR/templates/custom/"
+
+# Wait for S3 admin user secret
+print_info "Waiting for S3 admin user secret..."
+for i in {1..12}; do
+    if kubectl -n "$CEPH_NAMESPACE" get secret rook-ceph-object-user-s3-store-admin &>/dev/null; then
+        print_success "  S3 admin user ready"
+        break
+    fi
+    [[ "$i" -eq 12 ]] && print_warning "  Admin user secret not ready after 60s"
+    sleep 5
 done
-# Wait for S3 credentials secret
-if kubectl -n "$CEPH_NAMESPACE" get cephobjectstoreuser admin &>/dev/null; then
-    for i in {1..12}; do
-        if kubectl -n "$CEPH_NAMESPACE" get secret rook-ceph-object-user-s3-store-admin &>/dev/null; then
-            print_success "  S3 admin user ready"
-            break
-        fi
-        sleep 5
-    done
-fi
 
 print_success "Rook-Ceph deployment complete!"
 echo ""

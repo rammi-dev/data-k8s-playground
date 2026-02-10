@@ -26,11 +26,11 @@ if ! kubectl cluster-info &>/dev/null; then
     exit 1
 fi
 
-# Load .env for registry credentials
+# Load .env for registry credentials and MongoDB password
 ENV_FILE="$HELM_DIR/.env"
 if [[ ! -f "$ENV_FILE" ]]; then
     print_error ".env file not found at $ENV_FILE"
-    print_info "Copy .env.example to .env and fill in your Quay.io credentials:"
+    print_info "Copy .env.example to .env and fill in your credentials:"
     print_info "  cp $HELM_DIR/.env.example $HELM_DIR/.env"
     exit 1
 fi
@@ -43,6 +43,14 @@ if [[ -z "$DREMIO_REGISTRY_USER" ]] || [[ -z "$DREMIO_REGISTRY_PASSWORD" ]]; the
     print_error "DREMIO_REGISTRY_USER and DREMIO_REGISTRY_PASSWORD must be set in .env"
     exit 1
 fi
+
+# Validate MongoDB passwords
+for var in DREMIO_MONGODB_PASSWORD DREMIO_MONGODB_ADMIN_PASSWORD DREMIO_MONGODB_MONITOR_PASSWORD DREMIO_MONGODB_BACKUP_PASSWORD DREMIO_MONGODB_USERADMIN_PASSWORD; do
+    if [[ -z "${!var}" ]] || [[ "${!var}" == "change-me-in-production" ]]; then
+        print_error "$var must be set in .env"
+        exit 1
+    fi
+done
 
 print_info "Deploying Dremio Enterprise via Helm"
 print_info "Namespace: $DREMIO_NAMESPACE"
@@ -57,22 +65,69 @@ if ! kubectl -n "$CEPH_NAMESPACE" get cephobjectstore s3-store &>/dev/null; then
     exit 1
 fi
 
-# Get S3 credentials from Ceph
-S3_ACCESS_KEY=$(kubectl -n "$CEPH_NAMESPACE" get secret rook-ceph-object-user-s3-store-admin -o jsonpath='{.data.AccessKey}' 2>/dev/null | base64 -d)
-S3_SECRET_KEY=$(kubectl -n "$CEPH_NAMESPACE" get secret rook-ceph-object-user-s3-store-admin -o jsonpath='{.data.SecretKey}' 2>/dev/null | base64 -d)
+# ============================================================================
+# PRE-FLIGHT: Create Dremio S3 users in Ceph
+# ============================================================================
+print_info "Applying Dremio S3 user manifests to Ceph..."
+kubectl -n "$CEPH_NAMESPACE" apply -R -f "$HELM_DIR/templates/custom/"
 
-if [[ -z "$S3_ACCESS_KEY" ]] || [[ -z "$S3_SECRET_KEY" ]]; then
-    print_error "Could not retrieve Ceph S3 credentials"
-    print_info "Ensure S3 admin user exists: kubectl -n $CEPH_NAMESPACE get cephobjectstoreuser admin"
-    exit 1
-fi
-print_success "Ceph S3 credentials retrieved"
+# Wait for all Dremio S3 user secrets
+print_info "Waiting for S3 user secrets..."
+for user in dremio-dist dremio-catalog; do
+    SECRET="rook-ceph-object-user-s3-store-$user"
+    for i in {1..12}; do
+        if kubectl -n "$CEPH_NAMESPACE" get secret "$SECRET" &>/dev/null; then
+            print_success "  $user ready"
+            break
+        fi
+        [[ "$i" -eq 12 ]] && { print_error "$user secret not ready after 60s"; exit 1; }
+        sleep 5
+    done
+done
 
-# Create S3 buckets for Dremio
+# ============================================================================
+# PRE-FLIGHT: Retrieve S3 credentials (separate per component)
+# ============================================================================
+print_info "Retrieving S3 credentials..."
+
+# Admin credentials (bucket management only)
+ADMIN_ACCESS_KEY=$(kubectl -n "$CEPH_NAMESPACE" get secret \
+    rook-ceph-object-user-s3-store-admin \
+    -o jsonpath='{.data.AccessKey}' 2>/dev/null | base64 -d)
+ADMIN_SECRET_KEY=$(kubectl -n "$CEPH_NAMESPACE" get secret \
+    rook-ceph-object-user-s3-store-admin \
+    -o jsonpath='{.data.SecretKey}' 2>/dev/null | base64 -d)
+
+# distStorage credentials (coordinator, executor, MongoDB backup)
+DIST_ACCESS_KEY=$(kubectl -n "$CEPH_NAMESPACE" get secret \
+    rook-ceph-object-user-s3-store-dremio-dist \
+    -o jsonpath='{.data.AccessKey}' 2>/dev/null | base64 -d)
+DIST_SECRET_KEY=$(kubectl -n "$CEPH_NAMESPACE" get secret \
+    rook-ceph-object-user-s3-store-dremio-dist \
+    -o jsonpath='{.data.SecretKey}' 2>/dev/null | base64 -d)
+
+# Catalog credentials (Polaris)
+CATALOG_ACCESS_KEY=$(kubectl -n "$CEPH_NAMESPACE" get secret \
+    rook-ceph-object-user-s3-store-dremio-catalog \
+    -o jsonpath='{.data.AccessKey}' 2>/dev/null | base64 -d)
+CATALOG_SECRET_KEY=$(kubectl -n "$CEPH_NAMESPACE" get secret \
+    rook-ceph-object-user-s3-store-dremio-catalog \
+    -o jsonpath='{.data.SecretKey}' 2>/dev/null | base64 -d)
+
+# Validate all credentials
+for var in ADMIN_ACCESS_KEY ADMIN_SECRET_KEY DIST_ACCESS_KEY DIST_SECRET_KEY CATALOG_ACCESS_KEY CATALOG_SECRET_KEY; do
+    if [[ -z "${!var}" ]]; then
+        print_error "Failed to retrieve $var from Ceph"
+        exit 1
+    fi
+done
+print_success "S3 credentials retrieved (admin, dremio-dist, dremio-catalog)"
+
+# Create S3 buckets for Dremio (using admin credentials)
 print_info "Creating S3 buckets for Dremio..."
 kubectl -n "$CEPH_NAMESPACE" exec deploy/rook-ceph-tools -- bash -c "
-    export AWS_ACCESS_KEY_ID='$S3_ACCESS_KEY'
-    export AWS_SECRET_ACCESS_KEY='$S3_SECRET_KEY'
+    export AWS_ACCESS_KEY_ID='$ADMIN_ACCESS_KEY'
+    export AWS_SECRET_ACCESS_KEY='$ADMIN_SECRET_KEY'
     export AWS_DEFAULT_REGION='us-east-1'
     RGW=http://rook-ceph-rgw-s3-store.$CEPH_NAMESPACE.svc:80
 
@@ -106,6 +161,34 @@ kubectl create secret docker-registry dremio-quay-secret \
     -n "$DREMIO_NAMESPACE" \
     --dry-run=client -o yaml | kubectl apply -f -
 
+# Catalog S3 storage credentials (from dremio-catalog S3 user)
+kubectl create secret generic catalog-server-s3-storage-creds \
+    -n "$DREMIO_NAMESPACE" \
+    --from-literal=awsAccessKeyId="$CATALOG_ACCESS_KEY" \
+    --from-literal=awsSecretAccessKey="$CATALOG_SECRET_KEY" \
+    --dry-run=client -o yaml | kubectl apply -f -
+
+# MongoDB app user password (from .env — chart skips auto-generation if secret exists)
+kubectl create secret generic dremio-mongodb-app-users \
+    -n "$DREMIO_NAMESPACE" \
+    --from-literal=dremio="$DREMIO_MONGODB_PASSWORD" \
+    --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n "$DREMIO_NAMESPACE" annotate secret dremio-mongodb-app-users \
+    helm.sh/resource-policy=keep --overwrite
+
+# MongoDB system users (from .env — operator uses existing secret instead of auto-generating)
+kubectl create secret generic dremio-mongodb-system-users \
+    -n "$DREMIO_NAMESPACE" \
+    --from-literal=MONGODB_CLUSTER_ADMIN_USER=clusterAdmin \
+    --from-literal=MONGODB_CLUSTER_ADMIN_PASSWORD="$DREMIO_MONGODB_ADMIN_PASSWORD" \
+    --from-literal=MONGODB_CLUSTER_MONITOR_USER=clusterMonitor \
+    --from-literal=MONGODB_CLUSTER_MONITOR_PASSWORD="$DREMIO_MONGODB_MONITOR_PASSWORD" \
+    --from-literal=MONGODB_BACKUP_USER=backup \
+    --from-literal=MONGODB_BACKUP_PASSWORD="$DREMIO_MONGODB_BACKUP_PASSWORD" \
+    --from-literal=MONGODB_USER_ADMIN_USER=userAdmin \
+    --from-literal=MONGODB_USER_ADMIN_PASSWORD="$DREMIO_MONGODB_USERADMIN_PASSWORD" \
+    --dry-run=client -o yaml | kubectl apply -f -
+
 print_success "  Namespace and secrets ready"
 
 # ============================================================================
@@ -117,10 +200,10 @@ HELM_CMD="helm upgrade --install dremio $HELM_DIR/dremio \
     -n $DREMIO_NAMESPACE \
     -f $HELM_DIR/dremio/values.yaml \
     -f $HELM_DIR/values-overrides.yaml \
-    --set distStorage.aws.credentials.accessKey=$S3_ACCESS_KEY \
-    --set distStorage.aws.credentials.secret=$S3_SECRET_KEY \
-    --set catalog.storage.s3.accessKey=$S3_ACCESS_KEY \
-    --set catalog.storage.s3.secretKey=$S3_SECRET_KEY"
+    --set distStorage.aws.credentials.accessKey=$DIST_ACCESS_KEY \
+    --set distStorage.aws.credentials.secret=$DIST_SECRET_KEY \
+    --set catalog.storage.s3.accessKey=$CATALOG_ACCESS_KEY \
+    --set catalog.storage.s3.secretKey=$CATALOG_SECRET_KEY"
 
 # Add license key if provided
 if [[ -n "$DREMIO_LICENSE_KEY" ]] && [[ "$DREMIO_LICENSE_KEY" != "your-license-key-here" ]]; then
