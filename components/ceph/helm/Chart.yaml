@@ -3,21 +3,21 @@ name: rook-ceph-playground
 description: Rook-Ceph storage for the data playground
 type: application
 version: 1.0.0
-appVersion: "v18.2"
+appVersion: "v20.2"
 
 # Dependencies on official Rook Helm charts
 # Run: helm dependency update
 dependencies:
   # Rook Operator - must be installed first
   - name: rook-ceph
-    version: "v1.13.0"
+    version: "v1.19.1"
     repository: "https://charts.rook.io/release"
     alias: operator
     condition: operator.enabled
 
   # Ceph Cluster - installed after operator
   - name: rook-ceph-cluster
-    version: "v1.13.0"
+    version: "v1.19.1"
     repository: "https://charts.rook.io/release"
     alias: cluster
     condition: cluster.enabled

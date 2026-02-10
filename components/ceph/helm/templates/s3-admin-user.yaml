@@ -1,0 +1,12 @@
+# S3 admin user - creates secret rook-ceph-object-user-s3-store-admin
+# with AccessKey and SecretKey for S3 API access
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStoreUser
+metadata:
+  name: admin
+spec:
+  store: s3-store
+  displayName: "S3 Admin User"
+  capabilities:
+    user: "*"
+    bucket: "*"

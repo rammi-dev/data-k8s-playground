@@ -64,11 +64,14 @@ cluster:
   # Operator namespace (must match where operator is installed)
   operatorNamespace: rook-ceph
 
+  # Ceph image (v1.19+ moved this out of cephClusterSpec)
+  cephImage:
+    repository: quay.io/ceph/ceph
+    tag: v20
+    allowUnsupported: true
+
   # Ceph cluster configuration
   cephClusterSpec:
-    cephVersion:
-      image: quay.io/ceph/ceph:v20
-      allowUnsupported: true
     dataDirHostPath: /var/lib/rook
     skipUpgradeChecks: true
 

@@ -70,15 +70,15 @@ else
     print_info "  Cluster chart not installed, skipping"
 fi
 
-# Step 3: Remove finalizers from any remaining Ceph CRD objects
+# Step 3: Remove finalizers from any remaining Ceph CRD objects (ceph.rook.io, csi.ceph.io, objectbucket.io)
 print_info "Step 3: Removing finalizers from remaining resources..."
-for crd in $(kubectl get crd -o name 2>/dev/null | grep 'ceph\.rook\.io'); do
+for crd in $(kubectl get crd -o name 2>/dev/null | grep -E 'ceph\.rook\.io|csi\.ceph\.io|objectbucket\.io'); do
     remove_finalizers "$(basename "$crd")"
 done
 
 # Step 4: Delete remaining Ceph CRD objects
 print_info "Step 4: Deleting Ceph resources..."
-for crd in $(kubectl get crd -o name 2>/dev/null | grep 'ceph\.rook\.io'); do
+for crd in $(kubectl get crd -o name 2>/dev/null | grep -E 'ceph\.rook\.io|csi\.ceph\.io|objectbucket\.io'); do
     kubectl -n "$CEPH_NAMESPACE" delete "$(basename "$crd")" --all --timeout=30s 2>/dev/null || true
 done
 
@@ -104,15 +104,35 @@ else
     print_info "  Operator chart not installed, skipping"
 fi
 
-# Step 8: Delete Ceph CRDs (Helm does not remove CRDs on uninstall)
-print_info "Step 8: Deleting Ceph CRDs..."
-for crd in $(kubectl get crd -o name 2>/dev/null | grep -E 'ceph\.rook\.io|objectbucket\.io'); do
+# Step 8: Delete namespace BEFORE CRDs (so API server can still resolve CRD resources during cleanup)
+print_info "Step 8: Deleting namespace..."
+if kubectl get namespace "$CEPH_NAMESPACE" &>/dev/null; then
+    kubectl delete namespace "$CEPH_NAMESPACE" --timeout=60s 2>/dev/null || {
+        # Namespace stuck in Terminating - force-remove the kubernetes finalizer
+        print_warning "  Namespace stuck in Terminating, removing finalizer..."
+        kubectl get namespace "$CEPH_NAMESPACE" -o json \
+            | python3 -c 'import sys,json; ns=json.load(sys.stdin); ns["spec"]["finalizers"]=[]; json.dump(ns,sys.stdout)' \
+            | kubectl replace --raw "/api/v1/namespaces/$CEPH_NAMESPACE/finalize" -f - 2>/dev/null || true
+        # Wait for namespace to disappear
+        for i in $(seq 1 12); do
+            kubectl get namespace "$CEPH_NAMESPACE" &>/dev/null || break
+            sleep 5
+        done
+    }
+    print_success "  Namespace deleted"
+else
+    print_info "  Namespace not found, skipping"
+fi
+
+# Step 9: Delete Ceph CRDs (Helm does not remove CRDs on uninstall)
+print_info "Step 9: Deleting Ceph CRDs..."
+for crd in $(kubectl get crd -o name 2>/dev/null | grep -E 'ceph\.rook\.io|csi\.ceph\.io|objectbucket\.io'); do
     kubectl delete "$crd" --timeout=30s 2>/dev/null || true
 done
 
-# Step 9: Zap Ceph disks and clean rook data on all nodes
+# Step 10: Zap Ceph disks and clean rook data on all nodes
 # Removes bluestore signatures so devices can be reused by a fresh cluster
-print_info "Step 9: Zapping Ceph disks and cleaning rook data on all nodes..."
+print_info "Step 10: Zapping disks and cleaning rook data on all nodes..."
 for node in $(kubectl get nodes -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
     print_info "  Creating cleanup job on $node..."
     cat <<EOF | kubectl apply -f - 2>/dev/null
@@ -150,21 +170,28 @@ spec:
             dd if=/dev/zero of="\$dev" bs=1M count="\$SIZE_MB" oflag=direct 2>&1
             echo "  Wiped \$dev"
           done
-          # Clean rook state directory
-          if [ -d /var/lib/rook ]; then
-            rm -rf /var/lib/rook/*
-            echo "Cleaned /var/lib/rook"
-          fi
+          # Clean rook state directories (both legacy and persistent paths)
+          for dir in /var/lib/rook /persistent-rook; do
+            if [ -d "\$dir" ]; then
+              rm -rf "\$dir"/*
+              echo "Cleaned \$dir"
+            fi
+          done
           echo "=== Done ==="
         volumeMounts:
         - name: rook-data
           mountPath: /var/lib/rook
+        - name: rook-persistent
+          mountPath: /persistent-rook
         - name: dev
           mountPath: /dev
       volumes:
       - name: rook-data
         hostPath:
           path: /var/lib/rook
+      - name: rook-persistent
+        hostPath:
+          path: /tmp/hostpath_pv/rook
       - name: dev
         hostPath:
           path: /dev
@@ -189,10 +216,6 @@ done
 for node in $(kubectl get nodes -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
     kubectl -n default delete job/ceph-cleanup-${node} 2>/dev/null || true
 done
-
-# Step 10: Delete namespace
-print_info "Step 10: Deleting namespace..."
-kubectl delete namespace "$CEPH_NAMESPACE" --timeout=60s 2>/dev/null || true
 
 print_success "Rook-Ceph completely removed (including disk data)."
 print_info "To redeploy: ./components/ceph/scripts/build.sh"

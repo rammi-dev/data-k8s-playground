@@ -2,9 +2,11 @@
 # Recover Ceph after minikube start
 # Handles two scenarios:
 #   1. Clean restart (pre-stop.sh was run) - just scales services back up
-#   2. Dirty restart (pre-stop.sh was NOT run) - attempts device path repair via operator restart
+#   2. Dirty restart (pre-stop.sh was NOT run) - gives OSDs extra time, restarts if needed
 #
-# This script NEVER destroys data. If recovery fails, it tells you to run destroy+build manually.
+# This script NEVER destroys data. It NEVER deletes OSD deployments (which would
+# cause the operator to purge auth keys, creating a key mismatch with bluestore labels).
+# If recovery fails, it tells you to run destroy+build manually.
 #
 # Run from WSL: ./components/ceph/scripts/post-start.sh
 set -e
@@ -63,10 +65,25 @@ done
 sleep 5
 kubectl -n "$CEPH_NAMESPACE" wait --for=condition=Ready pod -l app=rook-ceph-mgr --timeout=120s 2>/dev/null || true
 
-# Step 5: Check if OSDs need device path repair
-print_info "Step 5: Checking OSD device paths..."
+# Step 5: Wait for MON to be fully operational (not just pod Ready)
+# The MON pod may pass health checks before it's ready to handle auth requests.
+# OSD init containers need to call 'ceph auth get-or-create' which requires a working MON.
+print_info "Step 5: Waiting for MON to accept commands..."
+for i in {1..12}; do
+    if kubectl -n "$CEPH_NAMESPACE" exec deploy/rook-ceph-tools -- ceph mon stat &>/dev/null; then
+        print_success "  MON is accepting commands"
+        break
+    fi
+    if [[ "$i" -eq 12 ]]; then
+        print_warning "  MON not responding after 60s, continuing anyway..."
+    else
+        print_info "  Waiting for MON... ($i/12)"
+        sleep 5
+    fi
+done
 
-NEEDS_REPAIR=false
+# Step 6: Log OSD device paths (diagnostic info)
+print_info "Step 6: Checking OSD device paths..."
 for deploy in $(kubectl -n "$CEPH_NAMESPACE" get deploy -l app=rook-ceph-osd -o name 2>/dev/null); do
     OSD_ID=$(kubectl -n "$CEPH_NAMESPACE" get "$deploy" -o jsonpath='{.metadata.labels.ceph-osd-id}' 2>/dev/null)
     STORED_PATH=$(kubectl -n "$CEPH_NAMESPACE" get "$deploy" -o jsonpath='{.spec.template.spec.initContainers[0].env[?(@.name=="ROOK_BLOCK_PATH")].value}' 2>/dev/null)
@@ -79,8 +96,8 @@ for deploy in $(kubectl -n "$CEPH_NAMESPACE" get deploy -l app=rook-ceph-osd -o 
     print_info "  OSD-$OSD_ID on $NODE: configured device=$STORED_PATH"
 done
 
-# Step 6: Scale up OSDs (let operator handle it)
-print_info "Step 6: Starting OSDs..."
+# Step 7: Scale up OSDs
+print_info "Step 7: Starting OSDs..."
 for deploy in $(kubectl -n "$CEPH_NAMESPACE" get deploy -l app=rook-ceph-osd -o name 2>/dev/null); do
     REPLICAS=$(kubectl -n "$CEPH_NAMESPACE" get "$deploy" -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "1")
     if [[ "$REPLICAS" == "0" ]]; then
@@ -88,10 +105,12 @@ for deploy in $(kubectl -n "$CEPH_NAMESPACE" get deploy -l app=rook-ceph-osd -o 
     fi
 done
 
-# Step 7: Wait for OSDs to start, detect failures
-print_info "Step 7: Waiting for OSDs to start (up to 90s)..."
+# Step 8: Wait for OSDs to start (up to 180s)
+# Give OSDs plenty of time - the init container scans all devices if the expected
+# path changed, which can take time. CrashLoopBackOff backoff delays add more time.
+print_info "Step 8: Waiting for OSDs to start (up to 180s)..."
 OSD_OK=true
-for i in {1..18}; do
+for i in {1..36}; do
     sleep 5
     TOTAL=$(kubectl -n "$CEPH_NAMESPACE" get deploy -l app=rook-ceph-osd --no-headers 2>/dev/null | wc -l)
     READY=$(kubectl -n "$CEPH_NAMESPACE" get deploy -l app=rook-ceph-osd --no-headers 2>/dev/null | awk '$2 == "1/1"' | wc -l)
@@ -102,51 +121,50 @@ for i in {1..18}; do
         break
     fi
 
-    if [[ "$FAILING" -gt 0 ]] && [[ "$i" -ge 12 ]]; then
-        print_warning "  $FAILING OSD(s) failing after 60s - attempting device path repair..."
+    if [[ "$FAILING" -gt 0 ]] && [[ "$i" -ge 24 ]]; then
+        print_warning "  $FAILING OSD(s) failing after 120s - attempting restart..."
         OSD_OK=false
         break
     fi
 
-    print_info "  OSDs: $READY/$TOTAL ready ($i/18)"
+    print_info "  OSDs: $READY/$TOTAL ready ($i/36)"
 done
 
-# Step 8: If OSDs failed, attempt device path repair
+# Step 9: If OSDs failed, rollout restart them (safe - preserves auth keys)
+# IMPORTANT: Never delete OSD deployments! Deleting causes the operator to purge
+# OSD auth keys from the MON. When new keys are created via 'auth get-or-create',
+# they won't match the keys baked into the bluestore labels, causing permanent
+# auth failure that requires destroy+rebuild to fix.
 if [[ "$OSD_OK" == "false" ]]; then
-    print_info "Step 8: Repairing OSD device paths..."
+    print_info "Step 9: Restarting OSD pods (preserving auth keys)..."
 
-    # Delete stale OSD deployments - operator will recreate with correct paths
-    print_info "  Deleting stale OSD deployments..."
-    kubectl -n "$CEPH_NAMESPACE" delete deploy -l app=rook-ceph-osd --wait=false 2>/dev/null || true
+    # Rollout restart - creates new pods but keeps the same deployment (no auth purge)
+    kubectl -n "$CEPH_NAMESPACE" rollout restart deploy -l app=rook-ceph-osd 2>/dev/null || true
 
-    # Delete old OSD prepare jobs
-    kubectl -n "$CEPH_NAMESPACE" delete job -l app=rook-ceph-osd-prepare --wait=false 2>/dev/null || true
+    # Wait for rollout to complete
+    for deploy in $(kubectl -n "$CEPH_NAMESPACE" get deploy -l app=rook-ceph-osd -o name 2>/dev/null); do
+        kubectl -n "$CEPH_NAMESPACE" rollout status "$deploy" --timeout=60s 2>/dev/null || true
+    done
 
-    # Restart operator to trigger fresh reconciliation
-    print_info "  Restarting operator for fresh OSD discovery..."
-    kubectl -n "$CEPH_NAMESPACE" rollout restart deploy/rook-ceph-operator
-    kubectl -n "$CEPH_NAMESPACE" rollout status deploy/rook-ceph-operator --timeout=60s
-
-    # Wait for operator to run new prepare jobs and create deployments
-    print_info "  Waiting for operator to rediscover OSDs (up to 120s)..."
-    for i in {1..24}; do
+    # Give restarted OSDs time to come up
+    print_info "  Waiting for restarted OSDs (up to 180s)..."
+    for i in {1..36}; do
         sleep 5
         TOTAL=$(kubectl -n "$CEPH_NAMESPACE" get deploy -l app=rook-ceph-osd --no-headers 2>/dev/null | wc -l)
         READY=$(kubectl -n "$CEPH_NAMESPACE" get deploy -l app=rook-ceph-osd --no-headers 2>/dev/null | awk '$2 == "1/1"' | wc -l)
-        FAILING=$(kubectl -n "$CEPH_NAMESPACE" get pods -l app=rook-ceph-osd --no-headers 2>/dev/null | grep -cE "Error|CrashLoop|Init:Error" || true)
 
         if [[ "$READY" -eq "$TOTAL" ]] && [[ "$TOTAL" -gt 0 ]]; then
-            print_success "  All $TOTAL OSDs recovered"
+            print_success "  All $TOTAL OSDs recovered after restart"
             OSD_OK=true
             break
         fi
 
-        print_info "  OSDs: $READY/$TOTAL ready ($i/24)"
+        print_info "  OSDs: $READY/$TOTAL ready ($i/36)"
     done
 fi
 
-# Step 9: Scale up remaining services
-print_info "Step 9: Starting remaining services..."
+# Step 10: Scale up remaining services
+print_info "Step 10: Starting remaining services..."
 
 # Scale up MDS
 for deploy in $(kubectl -n "$CEPH_NAMESPACE" get deploy -l app=rook-ceph-mds -o name 2>/dev/null); do
@@ -172,13 +190,13 @@ for deploy in $(kubectl -n "$CEPH_NAMESPACE" get deploy -l app=rook-ceph-rgw -o 
     fi
 done
 
-# Step 10: Unset noout flag
-print_info "Step 10: Unsetting OSD noout flag..."
+# Step 11: Unset noout flag
+print_info "Step 11: Unsetting OSD noout flag..."
 sleep 10
 kubectl -n "$CEPH_NAMESPACE" exec deploy/rook-ceph-tools -- ceph osd unset noout 2>/dev/null || true
 
-# Step 11: Final status check
-print_info "Step 11: Checking cluster health..."
+# Step 12: Final status check
+print_info "Step 12: Checking cluster health..."
 sleep 10
 echo ""
 kubectl -n "$CEPH_NAMESPACE" exec deploy/rook-ceph-tools -- ceph status 2>/dev/null || print_warning "Could not get cluster status yet"

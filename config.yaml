@@ -63,4 +63,4 @@ components:
     namespace: "rook-ceph"
     chart_repo: "https://charts.rook.io/release"
     chart_name: "rook-ceph"
-    chart_version: "v1.13.0"
+    chart_version: "v1.19.1"

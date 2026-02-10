@@ -141,7 +141,7 @@ print_info "Waiting for OSDs to start (up to 120s)..."
 OSD_OK=false
 for i in {1..24}; do
     sleep 5
-    OSD_COUNT=$(kubectl -n "$CEPH_NAMESPACE" exec deploy/rook-ceph-tools -- ceph osd stat --format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('num_up',0))" 2>/dev/null || echo "0")
+    OSD_COUNT=$(kubectl -n "$CEPH_NAMESPACE" exec deploy/rook-ceph-tools -- ceph osd stat --format json 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('num_up_osds', d.get('num_up', 0)))" 2>/dev/null || echo "0")
     if [[ "$OSD_COUNT" -gt 0 ]]; then
         print_success "  $OSD_COUNT OSD(s) are up"
         OSD_OK=true
@@ -184,6 +184,23 @@ for i in {1..20}; do
     fi
     sleep 15
 done
+
+# Create S3 admin user (apply extra manifests from helm/templates/)
+print_info "Applying extra manifests..."
+for manifest in "$HELM_DIR"/templates/*.yaml; do
+    [[ -f "$manifest" ]] || continue
+    kubectl -n "$CEPH_NAMESPACE" apply -f "$manifest"
+done
+# Wait for S3 credentials secret
+if kubectl -n "$CEPH_NAMESPACE" get cephobjectstoreuser admin &>/dev/null; then
+    for i in {1..12}; do
+        if kubectl -n "$CEPH_NAMESPACE" get secret rook-ceph-object-user-s3-store-admin &>/dev/null; then
+            print_success "  S3 admin user ready"
+            break
+        fi
+        sleep 5
+    done
+fi
 
 print_success "Rook-Ceph deployment complete!"
 echo ""
