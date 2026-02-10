@@ -14,7 +14,7 @@ Run minikube on Windows with Hyper-V driver for **20-60x faster image pulls** co
 ### 1. Setup Minikube (from PowerShell as Administrator)
 
 ```powershell
-cd C:\Work\playground\scripts\minikube-virtualbox
+cd C:\Work\playground\scripts\minikube-hyperv
 .\setup-hyperv.ps1
 ```
 
@@ -29,7 +29,7 @@ This will:
 
 ```bash
 # From WSL
-cd /mnt/c/Work/playground/scripts/minikube-virtualbox
+cd /mnt/c/Work/playground/scripts/minikube-hyperv
 ./setup-kubeconfig.sh
 ```
 

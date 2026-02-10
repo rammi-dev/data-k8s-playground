@@ -1,23 +1,110 @@
 # Data Infrastructure Playground
 
-A modular infrastructure playground for testing data components (Ceph, etc.) using Vagrant and minikube.
+A sandbox for deploying and testing data infrastructure components on Kubernetes. The core is a **Ceph S3 object store** (via Rook), with pluggable Helm-based components for databases, monitoring, and data processing.
 
-## Prerequisites
+```mermaid
+flowchart TB
+    subgraph Infra["Kubernetes Cluster (minikube)"]
+        direction TB
 
-### Windows Host
+        subgraph Core["Core Storage"]
+            Ceph["Ceph (Rook Operator)"]
+            S3["S3 Object Store (RGW)"]
+            Block["Block Storage (RBD)"]
+            FS["Filesystem (CephFS)"]
+            Ceph --> S3 & Block & FS
+        end
+
+        subgraph Pluggable["Pluggable Components (Helm Charts)"]
+            Mongo["Percona MongoDB"]
+            Mon["Monitoring\n(Grafana + Prometheus + Loki)"]
+            Future["...more"]
+        end
+
+        Pluggable -->|"storage"| Core
+    end
+
+    subgraph Clients["Client Access (WSL / Windows)"]
+        AWS["AWS CLI / S3 API"]
+        Kubectl["kubectl"]
+        Dashboard["Ceph Dashboard"]
+    end
+
+    AWS -->|port-forward| S3
+    Kubectl --> Infra
+    Dashboard -->|port-forward| Ceph
+```
+
+**Components:**
+
+| Component | Status | Description |
+|-----------|--------|-------------|
+| [Ceph](components/ceph/README.md) | Core | S3 object store, block & filesystem storage |
+| [Percona MongoDB](components/percona-mongo/README.md) | Pluggable | Replicated MongoDB with backup to S3 |
+| [Monitoring](components/monitoring/README.md) | Pluggable | Grafana, Prometheus, Loki observability stack |
+
+## Deployment Methods
+
+| Method | Platform | Driver | Best For |
+|--------|----------|--------|----------|
+| [Hyper-V (recommended)](#method-1-hyper-v-windows--wsl) | Windows + WSL | Hyper-V VMs | Fast image pulls, block devices for Ceph |
+| [Vagrant + VirtualBox](#method-2-vagrant--virtualbox) | Any OS | VirtualBox VM + Docker | Portable, works without Hyper-V |
+
+---
+
+## Method 1: Hyper-V (Windows + WSL)
+
+Runs minikube on Hyper-V VMs managed from PowerShell, with kubectl access from WSL.
+
+### Prerequisites
+
+- Windows 10/11 Pro or Enterprise (Hyper-V capable)
+- WSL2 (Ubuntu recommended)
+- PowerShell (Administrator)
+
+### Quick Start
+
+```powershell
+# 1. From PowerShell (Administrator) - create cluster
+cd C:\Work\playground\scripts\minikube-hyperv
+.\setup-hyperv.ps1
+```
+
+```bash
+# 2. From WSL - configure kubectl
+cd /mnt/c/Work/playground/scripts/minikube-hyperv
+./setup-kubeconfig.sh
+
+# 3. Deploy components
+cd /mnt/c/Work/playground
+./components/ceph/scripts/build.sh
+```
+
+### Cleanup
+
+```powershell
+# Complete removal (preserves minikube.exe and kubectl.exe)
+.\destroy-hyperv.ps1
+```
+
+See [scripts/minikube-hyperv/README.md](scripts/minikube-hyperv/README.md) for full documentation.
+
+---
+
+## Method 2: Vagrant + VirtualBox
+
+Runs minikube inside a VirtualBox VM with Docker driver.
+
+### Prerequisites
 
 1. **VirtualBox** (6.1+)
    - Download: https://www.virtualbox.org/wiki/Downloads
-   - Install with default settings
 
 2. **Vagrant** (2.3+)
    - Download: https://www.vagrantup.com/downloads
    - Install the Windows version (not WSL version)
-   - Verify: Open PowerShell and run `vagrant --version`
 
 3. **WSL2** (Ubuntu recommended)
-   - The scripts are designed to run from WSL
-   - WSL calls `vagrant.exe` on Windows with automatic path translation
 
 ### Project Location Requirement
 
@@ -26,73 +113,29 @@ A modular infrastructure playground for testing data components (Ceph, etc.) usi
 ```bash
 # Correct locations (Windows filesystem via WSL):
 /mnt/c/Work/playground
-/mnt/d/projects/playground
 
 # Incorrect locations (WSL filesystem - will NOT work):
-/home/user/playground
 ~/projects/playground
 ```
 
-This is required because Vagrant shared folders only work with DrvFs paths when running from WSL.
-
-### Verify Installation
-
-From WSL terminal:
-```bash
-# Should find Windows Vagrant
-vagrant.exe --version
-
-# Should find VirtualBox
-VBoxManage.exe --version
-```
-
-## Quick Start
-
-### 1. Configure
-
-Edit `config.yaml` to set your project path and customize resources:
+### Quick Start
 
 ```yaml
+# 1. Edit config.yaml
 paths:
-  # REQUIRED: Set this to where you cloned the project
   host_project_path: "/mnt/c/Work/playground"
   host_data_path: "/mnt/c/Work/playground-data"
-
-vm:
-  cpus: 4
-  memory: 8192    # MB
-
-minikube:
-  nodes: 1
-  cpus: 3
-  memory: 6144    # MB
 ```
 
-### 2. Create VM
-
 ```bash
+# 2. Create VM
 ./scripts/vagrant/build.sh
-```
 
-This provisions an Ubuntu VM with Docker, minikube, Helm, and kubectl.
-
-### 3. SSH into VM
-
-```bash
+# 3. SSH into VM and start minikube
 ./scripts/vagrant/ssh.sh
-```
+cd /vagrant && ./scripts/minikube/build.sh
 
-### 4. Start Minikube (inside VM)
-
-```bash
-cd /vagrant
-./scripts/minikube/build.sh
-```
-
-### 5. Deploy Components (inside VM)
-
-```bash
-# Enable component in config.yaml first
+# 4. Deploy components (inside VM)
 ./components/ceph/scripts/build.sh
 ```
 
@@ -101,20 +144,21 @@ cd /vagrant
 ```
 playground/
 ├── config.yaml              # Central configuration
-├── Vagrantfile              # VM provisioning
+├── Vagrantfile              # VM provisioning (Vagrant method)
 ├── scripts/
 │   ├── common/              # Shared utilities
+│   ├── minikube-hyperv/     # Hyper-V deployment (Windows)
+│   │   ├── setup-hyperv.ps1     # Create cluster
+│   │   ├── destroy-hyperv.ps1   # Complete removal
+│   │   ├── setup-kubeconfig.sh  # Configure WSL kubectl
+│   │   └── README.md
 │   ├── vagrant/             # VM management (run from WSL)
 │   │   ├── build.sh         # Create VM
 │   │   ├── destroy.sh       # Delete VM
-│   │   ├── start.sh         # Start VM
-│   │   ├── stop.sh          # Stop VM
-│   │   ├── ssh.sh           # SSH into VM
-│   │   └── status.sh        # Check VM status
-│   └── minikube/            # Cluster management (run inside VM)
+│   │   └── ssh.sh           # SSH into VM
+│   └── minikube/            # Cluster management (inside Vagrant VM)
 │       ├── build.sh         # Start cluster
-│       ├── destroy.sh       # Delete cluster
-│       └── status.sh        # Check status
+│       └── destroy.sh       # Delete cluster
 ├── components/
 │   └── <component>/
 │       ├── README.md        # Component documentation
@@ -239,10 +283,11 @@ This directory is mounted inside the VM at `/data`.
 
 | Guide | Description |
 |-------|-------------|
+| [Hyper-V Setup](scripts/minikube-hyperv/README.md) | Minikube on Windows with Hyper-V |
+| [Minikube Scripts](scripts/minikube/README.md) | Minikube management (Vagrant method) |
 | [Networking](docs/NETWORKING.md) | Access K8s services from Windows host |
-| [Minikube Scripts](scripts/minikube/README.md) | Minikube management and addons |
-| [Monitoring](components/monitoring/README.md) | Grafana, Prometheus, Loki stack |
 | [Ceph](components/ceph/README.md) | Ceph storage deployment |
+| [Monitoring](components/monitoring/README.md) | Grafana, Prometheus, Loki stack |
 
 ## Troubleshooting
 
