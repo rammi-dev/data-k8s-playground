@@ -19,6 +19,7 @@ Rook-Ceph provides distributed storage for Kubernetes using Ceph.
 - [Monitoring](#monitoring)
 - [Disaster Recovery](#disaster-recovery)
 - [Usage](#usage)
+  - [Stop / Start (Minikube Lifecycle)](#stop--start-minikube-lifecycle)
 
 ---
 
@@ -899,7 +900,6 @@ export AWS_ACCESS_KEY_ID=$(kubectl -n rook-ceph get secret rook-ceph-object-user
 export AWS_SECRET_ACCESS_KEY=$(kubectl -n rook-ceph get secret rook-ceph-object-user-s3-store-admin -o jsonpath='{.data.SecretKey}' | base64 -d)
 export AWS_ENDPOINT_URL=http://localhost:7480
 export AWS_DEFAULT_REGION=us-east-1  # Required: prevents InvalidLocationConstraint error
-export AWS_DEFAULT_REGION=us-east-1  # Required: prevents InvalidLocationConstraint error
 ```
 
 4. Use AWS CLI:
@@ -909,6 +909,27 @@ aws s3 mb s3://my-bucket
 aws s3 cp myfile.txt s3://my-bucket/
 aws s3 ls s3://my-bucket/
 ```
+
+### Stop / Start (Minikube Lifecycle)
+
+Ceph data persists across minikube restarts. Use the lifecycle scripts to avoid OSD failures:
+
+```bash
+# Before minikube stop (from WSL)
+./components/ceph/scripts/pre-stop.sh
+# Then: minikube stop (from PowerShell)
+
+# After minikube start (from WSL)
+./components/ceph/scripts/post-start.sh
+# Verify:
+./components/ceph/scripts/status.sh
+```
+
+**pre-stop.sh** sets the OSD `noout` flag, flushes journals, and scales down services in order (RGW -> MDS -> OSD -> MGR -> MON -> operator).
+
+**post-start.sh** scales services back up in order. If OSDs fail (e.g. dirty restart without pre-stop), it attempts to repair device paths by restarting the operator. If that fails, it reports the issue and tells you to run `destroy.sh && build.sh` manually (never destroys data automatically).
+
+See [minikube-hyperv README](../../scripts/minikube-hyperv/README.md#stop-cluster) for the full stop/start procedure.
 
 ### Remove Ceph
 
@@ -930,10 +951,11 @@ components/ceph/
 │       └── storageclass.yaml   # StorageClass definitions
 ├── scripts/
 │   ├── build.sh                # Deploy Ceph
-│   ├── destroy.sh              # Remove Ceph
+│   ├── destroy.sh              # Remove Ceph (wipes disks)
+│   ├── pre-stop.sh             # Graceful shutdown before minikube stop
+│   ├── post-start.sh           # Recovery after minikube start
 │   ├── status.sh               # Check Ceph health
-│   ├── test-s3.sh              # Test S3 connectivity
-│   └── create-box.sh           # Create platform box with Ceph
+│   └── test-s3.sh              # Test S3 connectivity
 └── README.md                   # This file
 ```
 

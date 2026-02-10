@@ -85,6 +85,32 @@ kubectl wait --for=condition=Established crd cephobjectstores.ceph.rook.io --tim
 print_success "Phase 1 complete: Operator and CRDs ready"
 
 # ============================================================================
+# CLEANUP: Remove stale state from previous cluster (if any)
+# ============================================================================
+# The operator creates configmaps/secrets for mon endpoints that persist across
+# helm uninstall/reinstall. If stale, the operator gets stuck trying to connect
+# to a dead mon instead of creating a new one.
+if kubectl -n "$CEPH_NAMESPACE" get cm rook-ceph-mon-endpoints &>/dev/null; then
+    # Check if a mon pod actually exists
+    MON_PODS=$(kubectl -n "$CEPH_NAMESPACE" get pods -l app=rook-ceph-mon --no-headers 2>/dev/null | wc -l)
+    if [[ "$MON_PODS" -eq 0 ]]; then
+        print_warning "Found stale mon state from previous cluster, cleaning up..."
+        # Scale down operator first so it doesn't recreate state while we delete it
+        kubectl -n "$CEPH_NAMESPACE" scale deploy/rook-ceph-operator --replicas=0
+        kubectl -n "$CEPH_NAMESPACE" wait --for=delete pod -l app=rook-ceph-operator --timeout=60s 2>/dev/null || true
+        # Delete stale state (remove finalizers first - secrets may have disaster-protection)
+        for obj in secret/rook-ceph-mon secret/rook-ceph-config cm/rook-ceph-mon-endpoints cm/rook-ceph-csi-config cm/rook-ceph-csi-mapping-config cm/rook-ceph-pdbstatemap; do
+            kubectl -n "$CEPH_NAMESPACE" patch "$obj" --type merge -p '{"metadata":{"finalizers":null}}' 2>/dev/null || true
+            kubectl -n "$CEPH_NAMESPACE" delete "$obj" --timeout=10s 2>/dev/null || true
+        done
+        # Scale operator back up with clean state
+        kubectl -n "$CEPH_NAMESPACE" scale deploy/rook-ceph-operator --replicas=1
+        kubectl -n "$CEPH_NAMESPACE" wait --for=condition=Ready pods -l app=rook-ceph-operator --timeout=120s
+        print_success "Stale state cleaned, operator restarted"
+    fi
+fi
+
+# ============================================================================
 # PHASE 2: Install Ceph Cluster
 # ============================================================================
 print_info "Phase 2: Installing Ceph Cluster..."
@@ -110,10 +136,59 @@ for i in {1..20}; do
     sleep 15
 done
 
+# Wait for OSDs to come up (critical - no OSDs means no storage)
+print_info "Waiting for OSDs to start (up to 120s)..."
+OSD_OK=false
+for i in {1..24}; do
+    sleep 5
+    OSD_COUNT=$(kubectl -n "$CEPH_NAMESPACE" exec deploy/rook-ceph-tools -- ceph osd stat --format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('num_up',0))" 2>/dev/null || echo "0")
+    if [[ "$OSD_COUNT" -gt 0 ]]; then
+        print_success "  $OSD_COUNT OSD(s) are up"
+        OSD_OK=true
+        break
+    fi
+    # Check if prepare jobs found issues
+    if [[ "$i" -eq 12 ]]; then
+        PREPARE_ISSUES=$(kubectl -n "$CEPH_NAMESPACE" logs -l app=rook-ceph-osd-prepare --tail=5 2>/dev/null | grep -c "different ceph cluster" || true)
+        if [[ "$PREPARE_ISSUES" -gt 0 ]]; then
+            print_error "Disks have bluestore data from a previous cluster!"
+            print_info "Run: ./components/ceph/scripts/destroy.sh && ./components/ceph/scripts/build.sh"
+            exit 1
+        fi
+    fi
+    print_info "  Waiting for OSDs... ($i/24)"
+done
+
+if [[ "$OSD_OK" == "false" ]]; then
+    print_error "No OSDs came up after 120s"
+    print_info "Check OSD prepare logs:"
+    print_info "  kubectl -n $CEPH_NAMESPACE logs -l app=rook-ceph-osd-prepare --tail=20"
+    print_info ""
+    print_info "If disks have old data, run destroy.sh first (it zaps disks):"
+    print_info "  ./components/ceph/scripts/destroy.sh && ./components/ceph/scripts/build.sh"
+    exit 1
+fi
+
+# Wait for S3 object store to become ready
+print_info "Waiting for S3 object store..."
+for i in {1..20}; do
+    S3_PHASE=$(kubectl -n "$CEPH_NAMESPACE" get cephobjectstore s3-store -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+    if [[ "$S3_PHASE" == "Ready" ]]; then
+        print_success "  S3 object store is ready"
+        break
+    fi
+    if [[ "$i" -eq 20 ]]; then
+        print_warning "  S3 still $S3_PHASE after 5m (may need more time)"
+    else
+        print_info "  S3 phase: $S3_PHASE ($i/20)"
+    fi
+    sleep 15
+done
+
 print_success "Rook-Ceph deployment complete!"
 echo ""
 print_info "Ceph Status:"
-kubectl -n "$CEPH_NAMESPACE" get cephcluster 2>/dev/null || echo "No cluster yet"
+kubectl -n "$CEPH_NAMESPACE" exec deploy/rook-ceph-tools -- ceph status 2>/dev/null || echo "Could not get status"
 echo ""
 print_info "Ceph Pods:"
 kubectl -n "$CEPH_NAMESPACE" get pods

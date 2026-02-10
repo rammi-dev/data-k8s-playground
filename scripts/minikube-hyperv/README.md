@@ -61,19 +61,48 @@ Edit `setup-hyperv.ps1` to change these values.
 
 ## Management
 
-### From PowerShell
+### Stop Cluster
+
+Ceph requires a graceful shutdown before stopping minikube. Skipping this may cause OSD failures on restart that require device path repair or full disk re-preparation.
+
+```bash
+# 1. From WSL - gracefully shut down Ceph (sets noout, flushes journals, scales down in order)
+cd /mnt/c/Work/playground
+./components/ceph/scripts/pre-stop.sh
+```
+
+```powershell
+# 2. From PowerShell - stop minikube VMs
+C:\Work\mini-vbox\minikube.exe stop
+```
+
+### Start Cluster
+
+```powershell
+# 1. From PowerShell - start minikube VMs
+C:\Work\mini-vbox\minikube.exe start
+```
+
+```bash
+# 2. From WSL - recover Ceph (scales services back up, repairs device paths if needed)
+cd /mnt/c/Work/playground
+./components/ceph/scripts/post-start.sh
+
+# 3. Verify health
+./components/ceph/scripts/status.sh
+```
+
+The post-start script handles two scenarios:
+- **Clean restart** (pre-stop was run): scales services back up in order, unsets noout flag
+- **Dirty restart** (pre-stop was NOT run): detects OSD failures, repairs device paths by restarting the operator for fresh OSD discovery. If recovery fails, tells you to run `destroy.sh && build.sh` manually
+
+### Other Commands (PowerShell)
 
 ```powershell
 # Check status
 C:\Work\mini-vbox\minikube.exe status
 
-# Stop cluster
-C:\Work\mini-vbox\minikube.exe stop
-
-# Start cluster
-C:\Work\mini-vbox\minikube.exe start
-
-# Delete cluster
+# Delete cluster entirely
 C:\Work\mini-vbox\minikube.exe delete
 
 # Access dashboard
@@ -89,7 +118,6 @@ C:\Work\mini-vbox\minikube.exe ssh -n minikube-m02
 ```bash
 kubectl get nodes
 kubectl get pods -A
-kubectl apply -f ./components/ceph/...
 ```
 
 ## Helper Scripts
