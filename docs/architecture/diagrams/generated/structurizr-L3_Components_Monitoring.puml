@@ -1,0 +1,120 @@
+@startuml
+title <size:18>L3 - Components: Monitoring Stack</size>
+
+set separator none
+top to bottom direction
+skinparam ranksep 60
+skinparam nodesep 30
+hide stereotype
+
+<style>
+  root {
+    BackgroundColor: #ffffff;
+    FontColor: #444444;
+  }
+  // Element,Component
+  .Element-RWxlbWVudCxDb21wb25lbnQ= {
+    BackgroundColor: #a5d8ff;
+    LineColor: #7397b2;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #000000;
+    FontSize: 16;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 700;
+  }
+  // Element,Container
+  .Element-RWxlbWVudCxDb250YWluZXI= {
+    BackgroundColor: #4dabf7;
+    LineColor: #3577ac;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #ffffff;
+    FontSize: 16;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 700;
+  }
+  // Element,Software System,External
+  .Element-RWxlbWVudCxTb2Z0d2FyZSBTeXN0ZW0sRXh0ZXJuYWw= {
+    BackgroundColor: #868e96;
+    LineColor: #5d6369;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #ffffff;
+    FontSize: 16;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 700;
+  }
+  // Relationship
+  .Relationship-UmVsYXRpb25zaGlw {
+    LineThickness: 2;
+    LineStyle: 10-10;
+    LineColor: #444444;
+    FontColor: #444444;
+    FontSize: 16;
+  }
+  // Data Lakehouse Platform
+  .Boundary-RGF0YSBMYWtlaG91c2UgUGxhdGZvcm0= {
+    BackgroundColor: #ffffff;
+    LineColor: #114f87;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #ffffff;
+    FontSize: 16;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+  }
+  // Monitoring Stack
+  .Boundary-TW9uaXRvcmluZyBTdGFjaw== {
+    BackgroundColor: #ffffff;
+    LineColor: #3577ac;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #ffffff;
+    FontSize: 16;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+  }
+</style>
+
+rectangle "==Keycloak (planned)\n<size:12>[Software System]</size>\n\nExternal shared SSO / identity broker (OIDC provider)" <<Element-RWxlbWVudCxTb2Z0d2FyZSBTeXN0ZW0sRXh0ZXJuYWw=>> as Keycloakplanned
+
+rectangle "Data Lakehouse Platform\n<size:12>[Software System]</size>" <<Boundary-RGF0YSBMYWtlaG91c2UgUGxhdGZvcm0=>> {
+  rectangle "Monitoring Stack\n<size:12>[Container: Monitoring (placeholder)]</size>" <<Boundary-TW9uaXRvcmluZyBTdGFjaw==>> {
+    rectangle "==Log Aggregation Engine\n<size:12>[Component]</size>\n\nCentralized log storage, full-text search, log analytics. (Elasticsearch or similar)" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as DataLakehousePlatform.MonitoringStack.LogAggregationEngine
+    rectangle "==Log Collector\n<size:12>[Component]</size>\n\nCollects logs from all pods, parses and forwards. Runs on every node (DaemonSet). (Logstash / Fluentd / Filebeat)" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as DataLakehousePlatform.MonitoringStack.LogCollector
+    rectangle "==Dashboards & Visualization\n<size:12>[Component]</size>\n\nLog search, visualization, dashboards, alerting. (Kibana / Grafana)" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as DataLakehousePlatform.MonitoringStack.DashboardsVisualization
+    rectangle "==Metrics Collection\n<size:12>[Component]</size>\n\nScrapes metrics from all components. Time series storage, alerting rules. (Prometheus or ELK-native)" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as DataLakehousePlatform.MonitoringStack.MetricsCollection
+    rectangle "==Alerting\n<size:12>[Component]</size>\n\nAlert rules for component health, resource usage, error rates." <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as DataLakehousePlatform.MonitoringStack.Alerting
+  }
+
+  rectangle "==Dremio\n<size:12>[Container: Dremio EE 26.1]</size>\n\nSQL query engine and data lakehouse platform. Federated queries across S3, JDBC sources. Manages Iceberg tables via Open Catalog (Polaris). Exposes REST API, ODBC/JDBC, Arrow Flight SQL." <<Element-RWxlbWVudCxDb250YWluZXI=>> as DataLakehousePlatform.Dremio
+  rectangle "==Apache Superset\n<size:12>[Container: Superset (placeholder)]</size>\n\nBI and data visualization platform. Dashboards, SQL Lab, chart builder, alert/report scheduling. Includes Redis and PostgreSQL for internal state." <<Element-RWxlbWVudCxDb250YWluZXI=>> as DataLakehousePlatform.ApacheSuperset
+  rectangle "==Apache Spark\n<size:12>[Container: Spark (placeholder)]</size>\n\nDistributed batch compute engine. ETL, data transformation, ML training. Reads/writes Iceberg tables on MinIO." <<Element-RWxlbWVudCxDb250YWluZXI=>> as DataLakehousePlatform.ApacheSpark
+  rectangle "==Apache Airflow\n<size:12>[Container: Airflow (placeholder)]</size>\n\nWorkflow orchestration. DAG scheduling, pipeline monitoring, task execution. Includes PostgreSQL and Redis for internal state." <<Element-RWxlbWVudCxDb250YWluZXI=>> as DataLakehousePlatform.ApacheAirflow
+  rectangle "==JupyterHub\n<size:12>[Container: JupyterHub (placeholder)]</size>\n\nMulti-user notebook server. Interactive data exploration with PySpark and Dremio SQL kernels." <<Element-RWxlbWVudCxDb250YWluZXI=>> as DataLakehousePlatform.JupyterHub
+}
+
+DataLakehousePlatform.MonitoringStack.LogCollector --> DataLakehousePlatform.MonitoringStack.LogAggregationEngine <<Relationship-UmVsYXRpb25zaGlw>> : "Forwards parsed logs\n<size:12>[TCP/HTTP]</size>"
+DataLakehousePlatform.MonitoringStack.DashboardsVisualization --> DataLakehousePlatform.MonitoringStack.LogAggregationEngine <<Relationship-UmVsYXRpb25zaGlw>> : "Log queries\n<size:12>[REST API]</size>"
+DataLakehousePlatform.MonitoringStack.DashboardsVisualization --> DataLakehousePlatform.MonitoringStack.MetricsCollection <<Relationship-UmVsYXRpb25zaGlw>> : "Metric queries\n<size:12>[REST API]</size>"
+DataLakehousePlatform.MonitoringStack.MetricsCollection --> DataLakehousePlatform.Dremio <<Relationship-UmVsYXRpb25zaGlw>> : "Scrapes /metrics\n<size:12>[HTTP]</size>"
+DataLakehousePlatform.MonitoringStack.MetricsCollection --> DataLakehousePlatform.ApacheSpark <<Relationship-UmVsYXRpb25zaGlw>> : "Scrapes /metrics\n<size:12>[HTTP]</size>"
+DataLakehousePlatform.MonitoringStack.MetricsCollection --> DataLakehousePlatform.ApacheAirflow <<Relationship-UmVsYXRpb25zaGlw>> : "Scrapes /metrics\n<size:12>[HTTP]</size>"
+DataLakehousePlatform.MonitoringStack.MetricsCollection --> DataLakehousePlatform.ApacheSuperset <<Relationship-UmVsYXRpb25zaGlw>> : "Scrapes /metrics\n<size:12>[HTTP]</size>"
+DataLakehousePlatform.MonitoringStack.MetricsCollection --> DataLakehousePlatform.JupyterHub <<Relationship-UmVsYXRpb25zaGlw>> : "Scrapes /metrics\n<size:12>[HTTP]</size>"
+DataLakehousePlatform.MonitoringStack.DashboardsVisualization --> Keycloakplanned <<Relationship-UmVsYXRpb25zaGlw>> : "User authentication\n<size:12>[OIDC]</size>"
+DataLakehousePlatform.ApacheSuperset --> DataLakehousePlatform.Dremio <<Relationship-UmVsYXRpb25zaGlw>> : "Queries data for dashboards\n<size:12>[Arrow Flight SQL]</size>"
+DataLakehousePlatform.ApacheSpark --> DataLakehousePlatform.Dremio <<Relationship-UmVsYXRpb25zaGlw>> : "Accesses Iceberg catalog (Polaris) via OAuth2\n<size:12>[Iceberg REST API (:8181) + OAuth2 (:9047)]</size>"
+DataLakehousePlatform.ApacheAirflow --> DataLakehousePlatform.Dremio <<Relationship-UmVsYXRpb25zaGlw>> : "Executes SQL pipeline steps\n<size:12>[JDBC/Flight SQL]</size>"
+DataLakehousePlatform.ApacheAirflow --> DataLakehousePlatform.ApacheSpark <<Relationship-UmVsYXRpb25zaGlw>> : "Submits SparkApplication CRs\n<size:12>[K8s API]</size>"
+DataLakehousePlatform.JupyterHub --> DataLakehousePlatform.Dremio <<Relationship-UmVsYXRpb25zaGlw>> : "Queries from notebooks\n<size:12>[Arrow Flight SQL]</size>"
+DataLakehousePlatform.JupyterHub --> DataLakehousePlatform.ApacheSpark <<Relationship-UmVsYXRpb25zaGlw>> : "Runs PySpark kernels\n<size:12>[Spark Connect]</size>"
+DataLakehousePlatform.ApacheSuperset --> Keycloakplanned <<Relationship-UmVsYXRpb25zaGlw>> : "Authenticates users\n<size:12>[OIDC]</size>"
+DataLakehousePlatform.ApacheAirflow --> Keycloakplanned <<Relationship-UmVsYXRpb25zaGlw>> : "Authenticates users\n<size:12>[OIDC]</size>"
+DataLakehousePlatform.JupyterHub --> Keycloakplanned <<Relationship-UmVsYXRpb25zaGlw>> : "Authenticates users\n<size:12>[OIDC]</size>"
+
+@enduml

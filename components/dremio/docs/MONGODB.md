@@ -245,8 +245,6 @@ All Dremio components use this same annotation pattern:
 
 **Service DNS:** `dremio-mongodb-rs0.<namespace>.svc.cluster.local`
 
-**Connection string (internal):** `mongodb://dremio-mongodb-rs0.<namespace>.svc.cluster.local:27017/dremio?ssl=false&replicaSet=rs0`
-
 ## Security
 
 - All containers run as non-root (UID 1001)

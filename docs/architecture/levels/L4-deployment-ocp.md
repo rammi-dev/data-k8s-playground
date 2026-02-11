@@ -1,0 +1,141 @@
+<!-- Wygenerowano automatycznie z workspace.dsl — NIE EDYTUJ RĘCZNIE -->
+<!-- Regeneracja: ./scripts/generate-diagrams.sh -->
+
+# L4 - Wdrożenie: OpenShift / Kubernetes
+
+> Sposób wdrożenia kontenerów Data Lakehouse w namespace dlh-prd OpenShift. Każdy kontener L2 odpowiada granicy wdrożeniowej zawierającej jednostki uruchomieniowe (StatefulSets, Deployments, CronJobs, dynamiczne Pody). Monitoring jest zewnętrzny — każda granica dokumentuje endpointy metryk i logów.
+
+## Diagram architektury
+
+![L4 - Wdrożenie: OpenShift / Kubernetes](svg/structurizr-L4_Deployment_OCP.svg)
+
+<details>
+<summary>Źródło PlantUML</summary>
+
+```plantuml
+@startuml
+title <size:18>L4 - Wdrożenie: OpenShift / Kubernetes</size>
+
+set separator none
+top to bottom direction
+skinparam ranksep 60
+skinparam nodesep 30
+hide stereotype
+
+<style>
+  root {
+    BackgroundColor: #ffffff;
+    FontColor: #444444;
+  }
+  // Element,Container
+  .Element-RWxlbWVudCxDb250YWluZXI= {
+    BackgroundColor: #4dabf7;
+    LineColor: #3577ac;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #ffffff;
+    FontSize: 16;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 700;
+  }
+  // Relationship
+  .Relationship-UmVsYXRpb25zaGlw {
+    LineThickness: 2;
+    LineStyle: 10-10;
+    LineColor: #444444;
+    FontColor: #444444;
+    FontSize: 16;
+  }
+  // Element,Deployment Node
+  .DeploymentNode-RWxlbWVudCxEZXBsb3ltZW50IE5vZGU= {
+    BackgroundColor: #fff3bf;
+    LineColor: #b2aa85;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #000000;
+    FontSize: 16;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+  }
+</style>
+
+rectangle "dlh-prd namespace\n<size:12>[Deployment Node: OpenShift Namespace]</size>" <<DeploymentNode-RWxlbWVudCxEZXBsb3ltZW50IE5vZGU=>> as OpenShift.dlhprdnamespace {
+  rectangle "Dremio\n<size:12>[Deployment Node: Container Boundary]</size>" <<DeploymentNode-RWxlbWVudCxEZXBsb3ltZW50IE5vZGU=>> as OpenShift.dlhprdnamespace.Dremio {
+    rectangle "dremio-master\n<size:12>[Deployment Node: StatefulSet (1 replica)]</size>" <<DeploymentNode-RWxlbWVudCxEZXBsb3ltZW50IE5vZGU=>> as OpenShift.dlhprdnamespace.Dremio.dremiomaster {
+      rectangle "==Dremio\n<size:12>[Container: Dremio EE 26.1]</size>\n\nSilnik zapytań SQL i platforma data lakehouse. Federowane zapytania do źródeł S3, JDBC. Zarządza tabelami Iceberg przez Open Catalog (Polaris). Udostępnia REST API, ODBC/JDBC, Arrow Flight SQL." <<Element-RWxlbWVudCxDb250YWluZXI=>> as OpenShift.dlhprdnamespace.Dremio.dremiomaster.Dremio_1
+    }
+
+    rectangle "dremio-executor\n<size:12>[Deployment Node: StatefulSet (0-N replicas, Engine Operator)]</size>" <<DeploymentNode-RWxlbWVudCxEZXBsb3ltZW50IE5vZGU=>> as OpenShift.dlhprdnamespace.Dremio.dremioexecutor {
+      rectangle "==Dremio\n<size:12>[Container: Dremio EE 26.1]</size>\n\nSilnik zapytań SQL i platforma data lakehouse. Federowane zapytania do źródeł S3, JDBC. Zarządza tabelami Iceberg przez Open Catalog (Polaris). Udostępnia REST API, ODBC/JDBC, Arrow Flight SQL." <<Element-RWxlbWVudCxDb250YWluZXI=>> as OpenShift.dlhprdnamespace.Dremio.dremioexecutor.Dremio_1
+    }
+
+  }
+
+  rectangle "MongoDB\n<size:12>[Deployment Node: Container Boundary]</size>" <<DeploymentNode-RWxlbWVudCxEZXBsb3ltZW50IE5vZGU=>> as OpenShift.dlhprdnamespace.MongoDB {
+    rectangle "mongodb-rs0\n<size:12>[Deployment Node: StatefulSet (3 replicas, Percona)]</size>" <<DeploymentNode-RWxlbWVudCxEZXBsb3ltZW50IE5vZGU=>> as OpenShift.dlhprdnamespace.MongoDB.mongodbrs0 {
+      rectangle "==MongoDB\n<size:12>[Container: Percona MongoDB 8.0]</size>\n\nMagazyn metadanych katalogu Dremio. Percona Server for MongoDB z cyklem życia zarządzanym przez operatora. Przechowuje metadane katalogu, dane użytkowników, profile zapytań." <<Element-RWxlbWVudCxDb250YWluZXI=>> as OpenShift.dlhprdnamespace.MongoDB.mongodbrs0.MongoDB_1
+    }
+
+  }
+
+  rectangle "Superset\n<size:12>[Deployment Node: Container Boundary]</size>" <<DeploymentNode-RWxlbWVudCxEZXBsb3ltZW50IE5vZGU=>> as OpenShift.dlhprdnamespace.Superset {
+    rectangle "superset-web\n<size:12>[Deployment Node: Deployment (2 replicas)]</size>" <<DeploymentNode-RWxlbWVudCxEZXBsb3ltZW50IE5vZGU=>> as OpenShift.dlhprdnamespace.Superset.supersetweb {
+      rectangle "==Apache Superset\n<size:12>[Container: Superset (placeholder)]</size>\n\nPlatforma BI i wizualizacji danych. Dashboardy, SQL Lab, kreator wykresów, planowanie alertów/raportów. Zawiera Redis i PostgreSQL dla wewnętrznego stanu." <<Element-RWxlbWVudCxDb250YWluZXI=>> as OpenShift.dlhprdnamespace.Superset.supersetweb.ApacheSuperset_1
+    }
+
+  }
+
+  rectangle "Spark\n<size:12>[Deployment Node: Container Boundary]</size>" <<DeploymentNode-RWxlbWVudCxEZXBsb3ltZW50IE5vZGU=>> as OpenShift.dlhprdnamespace.Spark {
+    rectangle "spark-operator\n<size:12>[Deployment Node: Deployment (1 replica)]</size>" <<DeploymentNode-RWxlbWVudCxEZXBsb3ltZW50IE5vZGU=>> as OpenShift.dlhprdnamespace.Spark.sparkoperator {
+      rectangle "==Apache Spark\n<size:12>[Container: Spark (placeholder)]</size>\n\nRozproszony silnik obliczeń wsadowych. ETL, transformacja danych, trenowanie ML. Odczytuje/zapisuje tabele Iceberg na MinIO." <<Element-RWxlbWVudCxDb250YWluZXI=>> as OpenShift.dlhprdnamespace.Spark.sparkoperator.ApacheSpark_1
+    }
+
+  }
+
+  rectangle "Airflow\n<size:12>[Deployment Node: Container Boundary]</size>" <<DeploymentNode-RWxlbWVudCxEZXBsb3ltZW50IE5vZGU=>> as OpenShift.dlhprdnamespace.Airflow {
+    rectangle "airflow-webserver\n<size:12>[Deployment Node: Deployment (1 replica)]</size>" <<DeploymentNode-RWxlbWVudCxEZXBsb3ltZW50IE5vZGU=>> as OpenShift.dlhprdnamespace.Airflow.airflowwebserver {
+      rectangle "==Apache Airflow\n<size:12>[Container: Airflow (placeholder)]</size>\n\nOrkiestracja przepływów pracy. Planowanie DAG, monitorowanie potoków, wykonywanie zadań. Zawiera PostgreSQL i Redis dla wewnętrznego stanu." <<Element-RWxlbWVudCxDb250YWluZXI=>> as OpenShift.dlhprdnamespace.Airflow.airflowwebserver.ApacheAirflow_1
+    }
+
+  }
+
+  rectangle "JupyterHub\n<size:12>[Deployment Node: Container Boundary]</size>" <<DeploymentNode-RWxlbWVudCxEZXBsb3ltZW50IE5vZGU=>> as OpenShift.dlhprdnamespace.JupyterHub {
+    rectangle "hub\n<size:12>[Deployment Node: Deployment (1 replica)]</size>" <<DeploymentNode-RWxlbWVudCxEZXBsb3ltZW50IE5vZGU=>> as OpenShift.dlhprdnamespace.JupyterHub.hub {
+      rectangle "==JupyterHub\n<size:12>[Container: JupyterHub (placeholder)]</size>\n\nWieloużytkownikowy serwer notebooków. Interaktywna eksploracja danych z jądrami PySpark i Dremio SQL." <<Element-RWxlbWVudCxDb250YWluZXI=>> as OpenShift.dlhprdnamespace.JupyterHub.hub.JupyterHub_1
+    }
+
+  }
+
+}
+
+OpenShift.dlhprdnamespace.Dremio.dremiomaster.Dremio_1 --> OpenShift.dlhprdnamespace.MongoDB.mongodbrs0.MongoDB_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Przechowuje metadane katalogu, dane użytkowników, profile zapytań\n<size:12>[MongoDB Protocol]</size>"
+OpenShift.dlhprdnamespace.Dremio.dremioexecutor.Dremio_1 --> OpenShift.dlhprdnamespace.MongoDB.mongodbrs0.MongoDB_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Przechowuje metadane katalogu, dane użytkowników, profile zapytań\n<size:12>[MongoDB Protocol]</size>"
+OpenShift.dlhprdnamespace.Superset.supersetweb.ApacheSuperset_1 --> OpenShift.dlhprdnamespace.Dremio.dremiomaster.Dremio_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Odpytuje dane do dashboardów\n<size:12>[Arrow Flight SQL]</size>"
+OpenShift.dlhprdnamespace.Superset.supersetweb.ApacheSuperset_1 --> OpenShift.dlhprdnamespace.Dremio.dremioexecutor.Dremio_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Odpytuje dane do dashboardów\n<size:12>[Arrow Flight SQL]</size>"
+OpenShift.dlhprdnamespace.Spark.sparkoperator.ApacheSpark_1 --> OpenShift.dlhprdnamespace.Dremio.dremiomaster.Dremio_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Dostęp do katalogu Iceberg (Polaris) przez OAuth2\n<size:12>[Iceberg REST API (:8181) + OAuth2 (:9047)]</size>"
+OpenShift.dlhprdnamespace.Spark.sparkoperator.ApacheSpark_1 --> OpenShift.dlhprdnamespace.Dremio.dremioexecutor.Dremio_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Dostęp do katalogu Iceberg (Polaris) przez OAuth2\n<size:12>[Iceberg REST API (:8181) + OAuth2 (:9047)]</size>"
+OpenShift.dlhprdnamespace.Airflow.airflowwebserver.ApacheAirflow_1 --> OpenShift.dlhprdnamespace.Dremio.dremiomaster.Dremio_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Wykonuje kroki SQL potoków\n<size:12>[JDBC/Flight SQL]</size>"
+OpenShift.dlhprdnamespace.Airflow.airflowwebserver.ApacheAirflow_1 --> OpenShift.dlhprdnamespace.Dremio.dremioexecutor.Dremio_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Wykonuje kroki SQL potoków\n<size:12>[JDBC/Flight SQL]</size>"
+OpenShift.dlhprdnamespace.Airflow.airflowwebserver.ApacheAirflow_1 --> OpenShift.dlhprdnamespace.Spark.sparkoperator.ApacheSpark_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Przesyła obiekty SparkApplication CR\n<size:12>[K8s API]</size>"
+OpenShift.dlhprdnamespace.JupyterHub.hub.JupyterHub_1 --> OpenShift.dlhprdnamespace.Dremio.dremiomaster.Dremio_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Zapytania z notebooków\n<size:12>[Arrow Flight SQL]</size>"
+OpenShift.dlhprdnamespace.JupyterHub.hub.JupyterHub_1 --> OpenShift.dlhprdnamespace.Dremio.dremioexecutor.Dremio_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Zapytania z notebooków\n<size:12>[Arrow Flight SQL]</size>"
+OpenShift.dlhprdnamespace.JupyterHub.hub.JupyterHub_1 --> OpenShift.dlhprdnamespace.Spark.sparkoperator.ApacheSpark_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Uruchamia jądra PySpark\n<size:12>[Spark Connect]</size>"
+
+@enduml
+```
+
+</details>
+
+## dlh-prd namespace
+
+**Technologia:** OpenShift Namespace
+
+| Obciążenie | Typ |
+|------------|-----|
+| Airflow | Container Boundary |
+| Dremio | Container Boundary |
+| JupyterHub | Container Boundary |
+| MongoDB | Container Boundary |
+| Spark | Container Boundary |
+| Superset | Container Boundary |

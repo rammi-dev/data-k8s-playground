@@ -1,0 +1,111 @@
+@startuml
+title <size:18>L3 - Komponenty: Dremio</size>
+
+set separator none
+top to bottom direction
+skinparam ranksep 60
+skinparam nodesep 30
+hide stereotype
+
+<style>
+  root {
+    BackgroundColor: #ffffff;
+    FontColor: #444444;
+  }
+  // Element,Component
+  .Element-RWxlbWVudCxDb21wb25lbnQ= {
+    BackgroundColor: #a5d8ff;
+    LineColor: #7397b2;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #000000;
+    FontSize: 16;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 700;
+  }
+  // Element,Container
+  .Element-RWxlbWVudCxDb250YWluZXI= {
+    BackgroundColor: #4dabf7;
+    LineColor: #3577ac;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #ffffff;
+    FontSize: 16;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 700;
+  }
+  // Element,Software System,External
+  .Element-RWxlbWVudCxTb2Z0d2FyZSBTeXN0ZW0sRXh0ZXJuYWw= {
+    BackgroundColor: #868e96;
+    LineColor: #5d6369;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #ffffff;
+    FontSize: 16;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 700;
+  }
+  // Relationship
+  .Relationship-UmVsYXRpb25zaGlw {
+    LineThickness: 2;
+    LineStyle: 10-10;
+    LineColor: #444444;
+    FontColor: #444444;
+    FontSize: 16;
+  }
+  // Data Lakehouse Platform
+  .Boundary-RGF0YSBMYWtlaG91c2UgUGxhdGZvcm0= {
+    BackgroundColor: #ffffff;
+    LineColor: #114f87;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #ffffff;
+    FontSize: 16;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+  }
+  // Dremio
+  .Boundary-RHJlbWlv {
+    BackgroundColor: #ffffff;
+    LineColor: #3577ac;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #ffffff;
+    FontSize: 16;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+  }
+</style>
+
+rectangle "==MinIO\n<size:12>[Software System]</size>\n\nMagazyn obiektowy kompatybilny z S3 dla tabel Iceberg, danych rozproszonych i kopii zapasowych" <<Element-RWxlbWVudCxTb2Z0d2FyZSBTeXN0ZW0sRXh0ZXJuYWw=>> as MinIO
+
+rectangle "Data Lakehouse Platform\n<size:12>[Software System]</size>" <<Boundary-RGF0YSBMYWtlaG91c2UgUGxhdGZvcm0=>> {
+  rectangle "Dremio\n<size:12>[Container: Dremio EE 26.1]</size>" <<Boundary-RHJlbWlv>> {
+    rectangle "==Query Coordinator\n<size:12>[Component]</size>\n\nParsowanie SQL, planowanie i optymalizacja zapytań. Endpointy klienckie: Web UI, ODBC/JDBC, Arrow Flight SQL. Endpoint wymiany tokenów OAuth2 dla zewnętrznego dostępu do katalogu. Zarządza refleksjami i danymi akceleracji." <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as DataLakehousePlatform.Dremio.QueryCoordinator
+    rectangle "==Execution Engine\n<size:12>[Component]</size>\n\nRozproszone wykonywanie zapytań, przetwarzanie kolumnowe. Zapis na dysk (spill) dla dużych zapytań. Pamięć podręczna C3 dla lokalnego cachowania danych S3. Pule silników: Micro, Small, Medium, Large." <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as DataLakehousePlatform.Dremio.ExecutionEngine
+    rectangle "==Engine Operator\n<size:12>[Component]</size>\n\nObserwuje CRD silników, zarządza cyklem życia executorów. Skaluje pule silników w górę/w dół w zależności od obciążenia." <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as DataLakehousePlatform.Dremio.EngineOperator
+    rectangle "==Catalog Server (Polaris)\n<size:12>[Component]</size>\n\nWewnętrzne REST API Open Catalog / Polaris. Zarządza metadanymi tabel Iceberg (schematy, partycje, snapshoty). Przechowuje dane Iceberg w s3://dremio-catalog." <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as DataLakehousePlatform.Dremio.CatalogServerPolaris
+    rectangle "==Catalog Server External\n<size:12>[Component]</size>\n\nZewnętrzne REST API Iceberg. Umożliwia klientom zewnętrznym (Spark) dostęp do katalogu Iceberg zarządzanego przez Dremio. Waliduje tokeny OAuth2 przez endpoint JWKS Koordynatora." <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as DataLakehousePlatform.Dremio.CatalogServerExternal
+    rectangle "==Catalog Services\n<size:12>[Component]</size>\n\nWewnętrzny mikroserwis zarządzania katalogiem. Zarządzanie źródłami, odkrywanie zbiorów danych." <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as DataLakehousePlatform.Dremio.CatalogServices
+  }
+
+  rectangle "==MongoDB\n<size:12>[Container: Percona MongoDB 8.0]</size>\n\nMagazyn metadanych katalogu Dremio. Percona Server for MongoDB z cyklem życia zarządzanym przez operatora. Przechowuje metadane katalogu, dane użytkowników, profile zapytań." <<Element-RWxlbWVudCxDb250YWluZXI=>> as DataLakehousePlatform.MongoDB
+  rectangle "==Apache Spark\n<size:12>[Container: Spark (placeholder)]</size>\n\nRozproszony silnik obliczeń wsadowych. ETL, transformacja danych, trenowanie ML. Odczytuje/zapisuje tabele Iceberg na MinIO." <<Element-RWxlbWVudCxDb250YWluZXI=>> as DataLakehousePlatform.ApacheSpark
+}
+
+DataLakehousePlatform.MongoDB --> MinIO <<Relationship-UmVsYXRpb25zaGlw>> : "Kopie zapasowe PBM do s3://dremio/catalog-backups/\n<size:12>[S3 API]</size>"
+DataLakehousePlatform.ApacheSpark --> MinIO <<Relationship-UmVsYXRpb25zaGlw>> : "Odczytuje/zapisuje dane Iceberg Parquet\n<size:12>[S3 API (s3a://, STS planned)]</size>"
+DataLakehousePlatform.Dremio.QueryCoordinator --> DataLakehousePlatform.MongoDB <<Relationship-UmVsYXRpb25zaGlw>> : "Odczytuje/zapisuje metadane\n<size:12>[MongoDB Protocol]</size>"
+DataLakehousePlatform.Dremio.CatalogServerPolaris --> DataLakehousePlatform.MongoDB <<Relationship-UmVsYXRpb25zaGlw>> : "Metadane Polaris\n<size:12>[MongoDB Protocol]</size>"
+DataLakehousePlatform.Dremio.CatalogServices --> DataLakehousePlatform.MongoDB <<Relationship-UmVsYXRpb25zaGlw>> : "Zarządzanie katalogiem\n<size:12>[MongoDB Protocol]</size>"
+DataLakehousePlatform.Dremio.EngineOperator --> DataLakehousePlatform.MongoDB <<Relationship-UmVsYXRpb25zaGlw>> : "Odczytuje konfigurację silników\n<size:12>[MongoDB Protocol]</size>"
+DataLakehousePlatform.Dremio.ExecutionEngine --> MinIO <<Relationship-UmVsYXRpb25zaGlw>> : "Odczytuje dane S3, pamięć podręczna C3\n<size:12>[S3 API]</size>"
+DataLakehousePlatform.Dremio.CatalogServerPolaris --> MinIO <<Relationship-UmVsYXRpb25zaGlw>> : "Przechowuje dane tabel Iceberg\n<size:12>[S3 API]</size>"
+DataLakehousePlatform.Dremio.CatalogServerExternal --> DataLakehousePlatform.Dremio.QueryCoordinator <<Relationship-UmVsYXRpb25zaGlw>> : "Waliduje tokeny OAuth2 przez JWKS\n<size:12>[HTTP (:9047/oauth/discovery/jwks.json)]</size>"
+DataLakehousePlatform.Dremio.CatalogServerExternal --> DataLakehousePlatform.Dremio.CatalogServerPolaris <<Relationship-UmVsYXRpb25zaGlw>> : "Przekazuje żądania katalogowe\n<size:12>[REST API (:9181)]</size>"
+DataLakehousePlatform.ApacheSpark --> DataLakehousePlatform.Dremio.CatalogServerExternal <<Relationship-UmVsYXRpb25zaGlw>> : "Dostęp do katalogu Iceberg przez OAuth2\n<size:12>[Iceberg REST API (:8181)]</size>"
+
+@enduml
