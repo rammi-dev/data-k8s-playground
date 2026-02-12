@@ -5,6 +5,7 @@
 # Renders to: deployment/lab/
 
 devMode: true
+DremioAdmin: true
 
 imagePullSecrets:
   - dremio-quay-secret
@@ -85,8 +86,8 @@ engine:
 catalog:
   replicas: 1
   externalAccess:
-    enabled: false
-    replicas: 0
+    enabled: true
+    replicas: 1
   resources:
     requests:
       cpu: "200m"
