@@ -70,3 +70,10 @@ components:
     namespace: "dremio"
     chart_oci: "oci://quay.io/dremio/dremio-helm"
     chart_version: "3.2.3"
+
+  airflow:
+    enabled: true
+    namespace: "airflow"
+    chart_repo: "https://airflow.apache.org"
+    chart_name: "airflow"
+    chart_version: "1.18.0"

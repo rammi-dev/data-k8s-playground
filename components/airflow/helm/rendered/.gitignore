@@ -1,0 +1,4 @@
+# Rendered templates are generated - do not commit
+# Regenerate with: helm template airflow . --namespace airflow --values values.yaml --output-dir rendered/
+*
+!.gitignore

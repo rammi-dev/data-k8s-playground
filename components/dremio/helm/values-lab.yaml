@@ -1,0 +1,201 @@
+# Lab Environment Overrides (single-node, minimal resources)
+# Base: helm/dremio/values.yaml + this file
+# Usage: helm template ... -f values.yaml -f values-lab.yaml
+#
+# Renders to: deployment/lab/
+
+devMode: true
+
+imagePullSecrets:
+  - dremio-quay-secret
+
+image:
+  repository: quay.io/dremio/dremio-ee
+  tag: "26.1"
+
+# Coordinator - minimal for lab
+coordinator:
+  count: 1
+  cpu: 1
+  memory: 4Gi
+  affinity: {}
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "4Gi"
+    limits:
+      cpu: "2"
+      memory: "8Gi"
+  log:
+    volume:
+      size: 10Gi
+  volumeSize: 10Gi
+  web:
+    auth:
+      type: "internal"
+
+# Executor - disabled (using engines)
+executor:
+  count: 0
+
+engine:
+  executor:
+    probes:
+      port: 45678
+      startup:
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        failureThreshold: 60
+      liveness:
+        failureThreshold: 30
+        periodSeconds: 10
+  options:
+    sizes:
+      - name: Micro
+        pods: 1
+        memory: 4Gi
+      - name: Small
+        pods: 1
+        memory: 10Gi
+    targetCpuCapacities:
+      capacities:
+        - name: 1C
+          cpu: 1
+        - name: 2C
+          cpu: 2
+      defaultCapacity: 1C
+    resourceAllocationOffsets:
+      offsets:
+        - name: reserve-0-0
+          cpu: 0
+          memory: 0Gi
+          action: Reserve
+      defaultOffset: reserve-0-0
+    storage:
+      spillStorageSizes:
+        - name: 10GB
+          storage: 10Gi
+      defaultSpillStorageSize: 10GB
+      c3StorageSizes:
+        - name: 10GB
+          storage: 10Gi
+      defaultC3StorageSize: 10GB
+
+# Catalog - minimal
+catalog:
+  replicas: 1
+  externalAccess:
+    enabled: false
+    replicas: 0
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+  storage:
+    location: "s3://dremio-catalog"
+    type: "s3"
+    enableVendedCredentialRefresh: "false"
+    s3:
+      endpoint: "http://rook-ceph-rgw-s3-store.rook-ceph.svc:80"
+      region: "us-east-1"
+      pathStyleAccess: true
+      skipSts: true
+      useAccessKeys: true
+      accessKey: ""
+      secretKey: ""
+      roleArn: "arn:aws:iam::000000000000:role/ceph-admin"
+      userArn: "arn:aws:iam::000000000000:user/ceph"
+      secretName: "catalog-server-s3-storage-creds"
+
+catalogservices:
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+# MongoDB - single node
+mongodb:
+  replicaCount: 1
+  unsafeFlags:
+    replsetSize: true
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+  storage:
+    resources:
+      requests:
+        storage: 10Gi
+
+mongodbOperator:
+  imagePullSecrets:
+    - name: dremio-quay-secret
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+opensearch:
+  enabled: false
+
+opensearchOperator:
+  imagePullSecrets:
+    - name: dremio-quay-secret
+
+zookeeper:
+  count: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+nats:
+  config:
+    cluster:
+      enabled: true
+      replicas: 1
+    monitor:
+      enabled: true
+      port: 8222
+    jetstream:
+      enabled: true
+    merge:
+      http_port: 8222
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+telemetry:
+  enabled: false
+
+distStorage:
+  type: "aws"
+  aws:
+    bucketName: "dremio"
+    path: "/"
+    region: "us-east-1"
+    endpoint: "rook-ceph-rgw-s3-store.rook-ceph.svc:80"
+    tls: false
+    authentication: "accessKeySecret"
+    credentials:
+      accessKey: ""
+      secret: ""

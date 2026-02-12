@@ -1,0 +1,81 @@
+# Apache Airflow Playground Values
+# Configures Airflow via Helm dependency
+#
+# Deploy with:
+#   helm dependency update
+#   helm upgrade --install airflow . -n airflow --create-namespace
+
+# ============================================
+# Airflow Chart Configuration
+# See: https://airflow.apache.org/docs/helm-chart/stable/parameters-reference.html
+# ============================================
+airflow:
+  # Airflow version
+  defaultAirflowTag: "3.1.7"
+
+  # Executor: KubernetesExecutor, CeleryExecutor, LocalExecutor
+  executor: "CeleryExecutor"
+
+  # Web server
+  webserver:
+    replicas: 1
+    resources:
+      limits:
+        cpu: 1
+        memory: 2Gi
+      requests:
+        cpu: 100m
+        memory: 512Mi
+
+  # Scheduler
+  scheduler:
+    replicas: 1
+    resources:
+      limits:
+        cpu: 1
+        memory: 2Gi
+      requests:
+        cpu: 100m
+        memory: 512Mi
+
+  # Triggerer
+  triggerer:
+    enabled: true
+    replicas: 1
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+  # PostgreSQL sub-chart (bundled)
+  postgresql:
+    enabled: true
+
+  # Redis - Celery broker
+  redis:
+    enabled: true
+
+  # Flower - Celery monitoring UI
+  flower:
+    enabled: true
+
+  # Celery workers
+  workers:
+    replicas: 2
+    resources:
+      limits:
+        cpu: 1
+        memory: 2Gi
+      requests:
+        cpu: 100m
+        memory: 512Mi
+
+  # DAGs configuration
+  dags:
+    persistence:
+      enabled: false
+    gitSync:
+      enabled: false

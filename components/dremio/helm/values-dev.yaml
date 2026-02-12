@@ -1,0 +1,216 @@
+# Dev Environment Overrides (multi-node, moderate resources)
+# Base: helm/dremio/values.yaml + this file
+# Usage: helm template ... -f values.yaml -f values-dev.yaml
+#
+# Renders to: deployment/dev/
+
+imagePullSecrets:
+  - dremio-quay-secret
+
+image:
+  repository: quay.io/dremio/dremio-ee
+  tag: "26.1"
+
+# Coordinator - moderate
+coordinator:
+  count: 1
+  resources:
+    requests:
+      cpu: "2"
+      memory: "8Gi"
+    limits:
+      cpu: "4"
+      memory: "16Gi"
+  log:
+    volume:
+      size: 50Gi
+  volumeSize: 50Gi
+  web:
+    auth:
+      type: "internal"
+
+# Executor - disabled (using engines)
+executor:
+  count: 0
+
+engine:
+  executor:
+    probes:
+      port: 45678
+      startup:
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        failureThreshold: 60
+      liveness:
+        failureThreshold: 30
+        periodSeconds: 10
+  options:
+    sizes:
+      - name: Small
+        pods: 1
+        memory: 16Gi
+      - name: Medium
+        pods: 2
+        memory: 16Gi
+      - name: Large
+        pods: 4
+        memory: 16Gi
+    targetCpuCapacities:
+      capacities:
+        - name: 2C
+          cpu: 2
+        - name: 4C
+          cpu: 4
+      defaultCapacity: 2C
+    resourceAllocationOffsets:
+      offsets:
+        - name: reserve-0-0
+          cpu: 0
+          memory: 0Gi
+          action: Reserve
+        - name: reserve-1-2
+          cpu: 1
+          memory: 2Gi
+          action: Reserve
+      defaultOffset: reserve-0-0
+    storage:
+      spillStorageSizes:
+        - name: 50GB
+          storage: 50Gi
+        - name: 100GB
+          storage: 100Gi
+      defaultSpillStorageSize: 50GB
+      c3StorageSizes:
+        - name: 50GB
+          storage: 50Gi
+        - name: 100GB
+          storage: 100Gi
+      defaultC3StorageSize: 50GB
+
+# Catalog
+catalog:
+  replicas: 1
+  externalAccess:
+    enabled: false
+    replicas: 0
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+  storage:
+    location: "s3://dremio-catalog"
+    type: "s3"
+    enableVendedCredentialRefresh: "false"
+    s3:
+      endpoint: "http://rook-ceph-rgw-s3-store.rook-ceph.svc:80"
+      region: "us-east-1"
+      pathStyleAccess: true
+      skipSts: true
+      useAccessKeys: true
+      accessKey: ""
+      secretKey: ""
+      roleArn: "arn:aws:iam::000000000000:role/ceph-admin"
+      userArn: "arn:aws:iam::000000000000:user/ceph"
+      secretName: "catalog-server-s3-storage-creds"
+
+catalogservices:
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+
+# MongoDB - 3-node replica set
+mongodb:
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+  storage:
+    resources:
+      requests:
+        storage: 50Gi
+
+mongodbOperator:
+  imagePullSecrets:
+    - name: dremio-quay-secret
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+# OpenSearch - enabled for dev
+opensearch:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "4Gi"
+      cpu: "1"
+    limits:
+      memory: "4Gi"
+      cpu: "1"
+  volumeSize: "20Gi"
+  opensearchJavaOpts: "-Xms2g -Xmx2g"
+
+opensearchOperator:
+  imagePullSecrets:
+    - name: dremio-quay-secret
+
+zookeeper:
+  count: 1
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+nats:
+  config:
+    cluster:
+      enabled: true
+      replicas: 1
+    monitor:
+      enabled: true
+      port: 8222
+    jetstream:
+      enabled: true
+    merge:
+      http_port: 8222
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+telemetry:
+  enabled: false
+
+distStorage:
+  type: "aws"
+  aws:
+    bucketName: "dremio"
+    path: "/"
+    region: "us-east-1"
+    endpoint: "rook-ceph-rgw-s3-store.rook-ceph.svc:80"
+    tls: false
+    authentication: "accessKeySecret"
+    credentials:
+      accessKey: ""
+      secret: ""

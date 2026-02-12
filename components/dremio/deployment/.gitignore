@@ -1,0 +1,6 @@
+# Rendered templates are generated - do not commit
+# Regenerate with: ../scripts/regenerate-rendered.sh [lab|dev|prod]
+lab/**/*.yaml
+dev/**/*.yaml
+prod/**/*.yaml
+!.gitignore

@@ -1,23 +1,36 @@
 # Data Lakehouse — C4 Architecture Documentation
 
-C4 model architecture documentation for the Data Lakehouse platform on OpenShift.
+Architecture documentation for the Data Lakehouse platform on OpenShift. Inspired by the [C4 model](https://c4model.com/) (software architecture), adapted here for platform and infrastructure documentation.
+
+**C4 modeling guidelines:** [`L0-design-principles`](levels/L0-design-principles.md) — zasady podziału na poziomy L1–L4, reguły granulacji, kiedy element promować do osobnego kontenera, kiedy grupować.
 
 **Single source of truth:** [`workspace.dsl`](workspace.dsl) (Structurizr DSL)
 
-Everything else is **generated** from the DSL:
-- `diagrams/generated/*.puml` → PlantUML diagrams (via `structurizr-cli export`)
-- `diagrams/generated/*.svg` → rendered SVG images (via `plantuml`)
-- `levels/*.md` → markdown documentation with embedded diagrams (via `generate-docs.py`)
+Two types of content are combined into the final documentation:
+- **Generated from DSL** — diagrams (`.puml`, `.svg`) and markdown structure (`levels/*.md`) via `structurizr-cli` + `generate-docs.py`
+- **Hand-maintained extras** — [`extras/*.md`](extras/) files with detailed descriptions, Mermaid diagrams, K8s object tables, networking/storage sections — merged into generated `levels/*.md` by `generate-docs.py`
 
 ## Pipeline
 
 ```
 workspace.dsl  ──→  structurizr-cli export  ──→  .puml + .json
                                                     │         │
-                                          plantuml -tsvg   generate-docs.py
-                                                    │         │
-                                                  .svg    levels/*.md (with embedded SVG)
+                                          plantuml -tsvg   generate-docs.py ←── extras/*.md
+                                                    │         │                  (hand-maintained)
+                                                  .svg    levels/*.md
+                                                          (DSL properties + extras merged)
 ```
+
+**Flow szczegółowo:**
+
+1. `workspace.dsl` → **structurizr-cli validate** — walidacja składni DSL
+2. `workspace.dsl` → **structurizr-cli export** → `.puml` (PlantUML) + `.json` (model danych)
+3. `.puml` → **post-process** (szersze boxy, mniejszy font) → **plantuml -tsvg** → `.svg`
+4. `.json` + `extras/*.md` → **generate-docs.py** → `levels/*.md`
+   - Właściwości (`properties {}`) z DSL → tabele w markdown (automatycznie)
+   - Pliki `extras/<nazwa>.md` → dołączane na końcu odpowiedniego `levels/<nazwa>.md` (ręcznie utrzymywane)
+
+**Przykład:** `extras/L4-deployment-mongodb.md` zawiera Mermaid diagram, tabele obiektów K8s, sekcje networking/storage. `generate-docs.py` łączy go z wygenerowanymi właściwościami DSL i zapisuje jako `levels/L4-deployment-mongodb.md`.
 
 ## Generated Documentation
 
@@ -32,14 +45,16 @@ workspace.dsl  ──→  structurizr-cli export  ──→  .puml + .json
 | L3 | [Airflow Components](levels/L3-components-airflow.md) | Workflow orchestration (placeholder) |
 | L3 | [JupyterHub Components](levels/L3-components-jupyterhub.md) | Notebooks (placeholder) |
 | L4 | [Deployment (OCP)](levels/L4-deployment-ocp.md) | Container boundaries overview, runtime units, monitoring endpoints |
-| L4 | [Dremio Deployment](levels/L4-deployment-dremio.md) | Dremio boundary runtime units (TODO) |
+| L4 | [Dremio Deployment](levels/L4-deployment-dremio.md) | Dremio boundary runtime units |
 | L4 | [MongoDB Deployment](levels/L4-deployment-mongodb.md) | MongoDB boundary runtime units |
 | L4 | [Superset Deployment](levels/L4-deployment-superset.md) | Superset boundary runtime units (TODO) |
 | L4 | [Spark Deployment](levels/L4-deployment-spark.md) | Spark boundary runtime units (TODO) |
 | L4 | [Airflow Deployment](levels/L4-deployment-airflow.md) | Airflow boundary runtime units (TODO) |
 | L4 | [JupyterHub Deployment](levels/L4-deployment-jupyterhub.md) | JupyterHub boundary runtime units (TODO) |
 
-> L1-L4 files are auto-generated from `workspace.dsl`. L0 is hand-maintained.
+> **L0** jest utrzymywany ręcznie — definiuje zasady modelowania C4.
+> **L1–L4** pliki w `levels/` są generowane automatycznie z `workspace.dsl` + `extras/`.
+> Pliki `extras/*.md` są utrzymywane ręcznie i zawierają szczegółowe opisy architektoniczne (Mermaid, tabele K8s, networking, storage).
 
 ## Quick Start
 
@@ -51,13 +66,13 @@ workspace.dsl  ──→  structurizr-cli export  ──→  .puml + .json
 ./docs/architecture/scripts/generate-diagrams.sh --docker
 ```
 
-The script runs a 6-step pipeline:
-1. Validate `workspace.dsl`
-2. Export DSL → PlantUML (`.puml`)
-3. Post-process `.puml` for readability (wider boxes, smaller fonts so descriptions fit)
-4. Export DSL → JSON
-5. Render PlantUML → SVG
-6. Generate markdown docs from JSON
+Skrypt uruchamia pipeline w 6 krokach:
+1. Walidacja `workspace.dsl`
+2. Eksport DSL → PlantUML (`.puml`)
+3. Post-processing `.puml` (szersze boxy, mniejszy font dla czytelności)
+4. Eksport DSL → JSON
+5. Rendering PlantUML → SVG
+6. Generowanie markdown z JSON + łączenie z `extras/*.md`
 
 ## Tooling Setup
 
@@ -169,28 +184,45 @@ python3 docs/architecture/scripts/generate-docs.py /tmp/structurizr-*.json docs/
 
 ## How to Edit
 
-1. Open `workspace.dsl` in VS Code
-2. Add/modify elements, relationships, or properties
-3. Run `./docs/architecture/scripts/generate-diagrams.sh`
-4. Commit the updated `workspace.dsl` and generated files
+Dwa sposoby dodawania treści do dokumentacji:
 
-**Adding detail to generated docs:** Use `properties` blocks on DSL elements. The generator renders them as tables in the markdown output.
+### Sposób 1: Właściwości DSL (automatycznie generowane tabele)
+
+1. Otwórz `workspace.dsl` w VS Code
+2. Dodaj/zmień elementy, relacje lub `properties {}`
+3. Uruchom `./docs/architecture/scripts/generate-diagrams.sh`
+4. Commituj `workspace.dsl` i wygenerowane pliki
 
 ```dsl
-component "My Component" "Description here" {
+deploymentNode "dremio-master" "" "StatefulSet (1 replica)" {
     properties {
-        "Port" ":8080"
-        "Metrics" "/metrics"
-        "CPU" "500m request / 2 limit"
+        "Purpose" "Koordynator zapytań — parsowanie SQL, planowanie"
+        "Ports" ":9047 (Web UI), :31010 (ODBC/JDBC), :45678 (fabric)"
+        "Resources" "requests: 4/16Gi, limits: 4/16Gi"
     }
 }
 ```
+
+### Sposób 2: Pliki extras/ (ręcznie utrzymywane opisy)
+
+1. Utwórz lub edytuj plik w `extras/` o nazwie odpowiadającej docelowemu `levels/*.md`
+   - np. `extras/L4-deployment-dremio.md` → łączony z `levels/L4-deployment-dremio.md`
+2. Dodaj szczegółowe sekcje: opis architektury, diagram Mermaid, tabele obiektów K8s, networking, storage
+3. Zacznij plik od komentarza wskazującego źródło:
+   ```
+   <!-- Included in: levels/L4-deployment-dremio.md (deployment boundary, via extras/) -->
+   <!-- Source: components/dremio/helm/ (rendered Helm templates + values-overrides.yaml) -->
+   ```
+4. Uruchom `./docs/architecture/scripts/generate-diagrams.sh` — treść extras zostanie dołączona po sekcjach wygenerowanych z DSL
+5. Commituj `extras/*.md`, `workspace.dsl` i wygenerowane pliki
 
 ## Other Files
 
 | File | Purpose |
 |------|---------|
+| [levels/L0-design-principles.md](levels/L0-design-principles.md) | Zasady modelowania C4 — separacja poziomów L1–L4, reguły granulacji |
+| [extras/](extras/) | Ręcznie utrzymywane opisy architektoniczne (Mermaid, K8s, networking, storage) — łączone z `levels/` |
 | [adr/001-structurizr-dsl-choice.md](adr/001-structurizr-dsl-choice.md) | ADR: Why Structurizr DSL |
 | [diagrams/custom/](diagrams/custom/) | Hand-crafted PlantUML (not generated) |
 | [scripts/generate-diagrams.sh](scripts/generate-diagrams.sh) | Full pipeline script |
-| [scripts/generate-docs.py](scripts/generate-docs.py) | JSON → markdown generator |
+| [scripts/generate-docs.py](scripts/generate-docs.py) | JSON + extras → markdown generator |

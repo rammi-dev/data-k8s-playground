@@ -1,0 +1,234 @@
+# Prod Environment Overrides (HA, full resources)
+# Base: helm/dremio/values.yaml + this file
+# Usage: helm template ... -f values.yaml -f values-prod.yaml
+#
+# Renders to: deployment/prod/
+
+imagePullSecrets:
+  - dremio-quay-secret
+
+image:
+  repository: quay.io/dremio/dremio-enterprise
+  tag: "26.1.3"
+
+# Coordinator - production scale
+coordinator:
+  count: 1
+  resources:
+    requests:
+      cpu: "8"
+      memory: "32Gi"
+    limits:
+      cpu: "16"
+      memory: "64Gi"
+  log:
+    volume:
+      size: 100Gi
+  volumeSize: 100Gi
+  web:
+    auth:
+      type: "internal"
+
+# Executor - disabled (using engines)
+executor:
+  count: 0
+
+engine:
+  executor:
+    probes:
+      port: 45678
+      startup:
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        failureThreshold: 60
+      liveness:
+        failureThreshold: 30
+        periodSeconds: 10
+  options:
+    sizes:
+      - name: Small
+        pods: 2
+        memory: 64Gi
+      - name: Medium
+        pods: 4
+        memory: 64Gi
+      - name: Large
+        pods: 8
+        memory: 128Gi
+      - name: XLarge
+        pods: 12
+        memory: 128Gi
+    targetCpuCapacities:
+      capacities:
+        - name: 8C
+          cpu: 8
+        - name: 16C
+          cpu: 16
+        - name: 32C
+          cpu: 32
+      defaultCapacity: 16C
+    resourceAllocationOffsets:
+      offsets:
+        - name: reserve-0-0
+          cpu: 0
+          memory: 0Gi
+          action: Reserve
+        - name: reserve-2-8
+          cpu: 2
+          memory: 8Gi
+          action: Reserve
+        - name: reserve-2-16
+          cpu: 2
+          memory: 16Gi
+          action: Reserve
+      defaultOffset: reserve-2-8
+    storage:
+      spillStorageSizes:
+        - name: 100GB
+          storage: 100Gi
+        - name: 250GB
+          storage: 250Gi
+        - name: 500GB
+          storage: 500Gi
+      defaultSpillStorageSize: 100GB
+      c3StorageSizes:
+        - name: 100GB
+          storage: 100Gi
+        - name: 250GB
+          storage: 250Gi
+        - name: 500GB
+          storage: 500Gi
+      defaultC3StorageSize: 100GB
+
+# Catalog - HA
+catalog:
+  replicas: 2
+  externalAccess:
+    enabled: true
+    replicas: 2
+  resources:
+    requests:
+      cpu: "4"
+      memory: "8Gi"
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+  storage:
+    location: "s3://dremio-catalog"
+    type: "s3"
+    enableVendedCredentialRefresh: "false"
+    s3:
+      endpoint: "http://rook-ceph-rgw-s3-store.rook-ceph.svc:80"
+      region: "us-east-1"
+      pathStyleAccess: true
+      skipSts: true
+      useAccessKeys: true
+      accessKey: ""
+      secretKey: ""
+      roleArn: "arn:aws:iam::000000000000:role/ceph-admin"
+      userArn: "arn:aws:iam::000000000000:user/ceph"
+      secretName: "catalog-server-s3-storage-creds"
+
+catalogservices:
+  resources:
+    requests:
+      cpu: "4"
+      memory: "8Gi"
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+
+# MongoDB - 3-node replica set, production resources
+mongodb:
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 2
+      memory: 2Gi
+    limits:
+      cpu: 4
+      memory: 4Gi
+  storage:
+    resources:
+      requests:
+        storage: 512Gi
+  backup:
+    enabled: true
+    schedule: "0 0 * * *"
+    keep: 3
+
+mongodbOperator:
+  imagePullSecrets:
+    - name: dremio-quay-secret
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+# OpenSearch - HA
+opensearch:
+  enabled: true
+  replicas: 3
+  resources:
+    requests:
+      memory: "16Gi"
+      cpu: "2"
+    limits:
+      memory: "16Gi"
+      cpu: "2"
+  volumeSize: "100Gi"
+  opensearchJavaOpts: "-Xms10g -Xmx10g"
+
+opensearchOperator:
+  imagePullSecrets:
+    - name: dremio-quay-secret
+
+zookeeper:
+  count: 3
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+  volumeSize: 10Gi
+
+nats:
+  config:
+    cluster:
+      enabled: true
+      replicas: 3
+    monitor:
+      enabled: true
+      port: 8222
+    jetstream:
+      enabled: true
+    merge:
+      http_port: 8222
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1024Mi"
+    limits:
+      cpu: "750m"
+      memory: "1536Mi"
+
+telemetry:
+  enabled: true
+
+distStorage:
+  type: "aws"
+  aws:
+    bucketName: "dremio"
+    path: "/"
+    region: "us-east-1"
+    endpoint: "rook-ceph-rgw-s3-store.rook-ceph.svc:80"
+    tls: false
+    authentication: "accessKeySecret"
+    credentials:
+      accessKey: ""
+      secret: ""

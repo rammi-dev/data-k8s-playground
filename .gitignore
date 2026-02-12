@@ -37,6 +37,7 @@ temp/
 secrets/
 .env
 .env.*
+!.env.example
 
 # Helm dependencies (can be regenerated)
 components/*/helm/charts/
