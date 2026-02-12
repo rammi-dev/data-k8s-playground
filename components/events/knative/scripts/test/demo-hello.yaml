@@ -1,0 +1,18 @@
+# Hello World Knative Service — for testing Serving features
+# Tests: scale-to-zero, scale-from-zero, revisions, traffic splitting
+---
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: hello
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+        - image: ghcr.io/knative/helloworld-go:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: TARGET
+              value: "World"

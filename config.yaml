@@ -40,7 +40,7 @@ minikube:
   # cpus and memory are auto-calculated: VM resources - reserved
   # With current settings: cpus=7, memory=38912MB (~38GB)
   disk_size: "40g"
-  kubernetes_version: "v1.31.0"  # Recent stable version (v1.35 is latest)
+  kubernetes_version: "v1.35.0"  # Matches running cluster version
   # Extra options for better resource utilization and Ceph support
   extra_config:
     - "kubelet.housekeeping-interval=10s"
@@ -77,3 +77,43 @@ components:
     chart_repo: "https://airflow.apache.org"
     chart_name: "airflow"
     chart_version: "1.18.0"
+
+  # Event-driven platform: Knative Serving/Eventing + Strimzi Kafka + Gateway API
+  # Phased deployment: Phase 1-2 (Envoy Gateway), Phase 3 (swap to Istio)
+  strimzi:
+    enabled: true
+    namespace: "kafka"
+    chart_repo: "https://strimzi.io/charts/"
+    chart_name: "strimzi-kafka-operator"
+    chart_version: "0.50.0"
+    kafka_version: "4.1.1"
+    kafka_cluster_name: "events-kafka"
+
+  knative:
+    enabled: true
+    namespace: "knative-operator"
+    serving_namespace: "knative-serving"
+    eventing_namespace: "knative-eventing"
+    chart_repo: "https://knative.github.io/operator"
+    chart_name: "knative-operator"
+    chart_version: "v1.21.0"
+    version: "v1.21.0"
+
+  envoy_gateway:
+    enabled: true                # Phase 1-2 (disable when switching to Istio)
+    namespace: "envoy-gateway-system"
+    chart_version: "v1.7.0"
+
+  istio:
+    enabled: false               # Phase 3 (enable when ready, disable envoy_gateway)
+    namespace: "istio-system"
+    chart_repo: "https://istio-release.storage.googleapis.com/charts"
+    chart_version: "1.28.3"
+
+  postgres:
+    enabled: true
+    namespace: "postgres-operator"
+    chart_repo: "https://cloudnative-pg.github.io/charts"
+    chart_name: "cloudnative-pg"
+    chart_version: "0.27.1"
+

@@ -1,0 +1,26 @@
+# KnativeServing CR — the Knative Operator reconciles this into a full Serving deployment
+# Includes: net-gateway-api plugin, sslip.io DNS, Gateway API ingress class
+# Docs: https://knative.dev/docs/install/operator/configuring-serving-cr/
+---
+apiVersion: operator.knative.dev/v1beta1
+kind: KnativeServing
+metadata:
+  name: knative-serving
+  namespace: knative-serving
+spec:
+  version: "1.21.0"
+  ingress:
+    gateway-api:
+      enabled: true
+  config:
+    network:
+      ingress-class: "gateway-api.ingress.networking.knative.dev"
+    gateway:
+      # Phase 1-2: Envoy Gateway (class: eg)
+      # Phase 3: Switch to Istio (class: istio)
+      external-gateways: |
+        [{"class": "eg", "gateway": "knative-serving/knative-gateway", "supported-features": ["HTTPRouteRequestTimeout"]}]
+      local-gateways: |
+        [{"class": "eg", "gateway": "knative-serving/knative-gateway", "supported-features": ["HTTPRouteRequestTimeout"]}]
+    domain:
+      sslip.io: ""

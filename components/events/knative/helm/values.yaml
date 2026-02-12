@@ -1,0 +1,15 @@
+# Knative Playground Values
+# Configures Knative Operator via Helm dependency
+#
+# Deploy with:
+#   helm dependency update
+#   helm upgrade --install knative-operator . -n knative-operator --create-namespace
+#
+# The operator manages Knative Serving + Eventing via CRs in manifests/
+# See: https://knative.dev/docs/install/operator/knative-with-operators/
+
+# ============================================
+# Knative Operator Configuration
+# ============================================
+knative-operator:
+  # Default operator settings — override in values-overrides.yaml

@@ -1,0 +1,13 @@
+apiVersion: v2
+name: strimzi-playground
+description: Strimzi Kafka Operator for the event-driven playground
+type: application
+version: 1.0.0
+appVersion: "4.1.1"
+
+# Dependencies on official Strimzi Helm chart
+# Run: helm dependency update
+dependencies:
+  - name: strimzi-kafka-operator
+    version: "0.50.0"
+    repository: "https://strimzi.io/charts/"

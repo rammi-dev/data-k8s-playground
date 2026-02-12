@@ -1,0 +1,2 @@
+# Envoy Gateway Overrides — environment-specific tweaks
+# Layered on top of values.yaml during helm install

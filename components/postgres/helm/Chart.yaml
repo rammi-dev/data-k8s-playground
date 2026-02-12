@@ -1,0 +1,13 @@
+apiVersion: v2
+name: postgres-playground
+description: CloudNativePG operator for PostgreSQL instances
+type: application
+version: 1.0.0
+appVersion: "17.2"
+
+# Dependencies on official CloudNativePG Helm chart
+# Run: helm dependency update
+dependencies:
+  - name: cloudnative-pg
+    version: "0.27.1"
+    repository: "https://cloudnative-pg.github.io/charts"

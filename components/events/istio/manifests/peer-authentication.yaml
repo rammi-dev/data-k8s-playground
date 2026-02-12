@@ -1,0 +1,10 @@
+# Mesh-wide mTLS — enforces encrypted service-to-service communication
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: istio-system
+spec:
+  mtls:
+    mode: STRICT

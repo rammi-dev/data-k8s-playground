@@ -40,6 +40,7 @@ flowchart TB
 | Component | Status | Description |
 |-----------|--------|-------------|
 | [Ceph](components/ceph/README.md) | Core | S3 object store, block & filesystem storage |
+| [PostgreSQL](components/postgres/README.md) | Pluggable | CloudNativePG operator for PostgreSQL databases |
 | [Percona MongoDB](components/percona-mongo/README.md) | Pluggable | Replicated MongoDB with backup to S3 |
 | [Monitoring](components/monitoring/README.md) | Pluggable | Grafana, Prometheus, Loki observability stack |
 

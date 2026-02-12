@@ -1,0 +1,13 @@
+apiVersion: v2
+name: envoy-gateway-playground
+description: Envoy Gateway for Gateway API in the event-driven playground
+type: application
+version: 1.0.0
+appVersion: "1.7.0"
+
+# Dependencies on official Envoy Gateway Helm chart (OCI registry)
+# Run: helm dependency update
+dependencies:
+  - name: gateway-helm
+    version: "v1.7.0"
+    repository: "oci://docker.io/envoyproxy"

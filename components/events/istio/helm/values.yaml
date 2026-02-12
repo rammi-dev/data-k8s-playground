@@ -1,0 +1,30 @@
+# Istio Playground Values
+# Configures Istio via Helm dependencies (base + istiod)
+#
+# Deploy with:
+#   helm dependency update
+#   helm upgrade --install istio . -n istio-system --create-namespace
+#
+# See: https://istio.io/latest/docs/setup/install/helm/
+
+# ============================================
+# Istio Base Configuration (CRDs)
+# ============================================
+base:
+  defaultRevision: default
+
+# ============================================
+# Istiod Configuration (Control Plane)
+# ============================================
+istiod:
+  pilot:
+    env:
+      PILOT_ENABLE_GATEWAY_API: "true"
+      PILOT_ENABLE_GATEWAY_API_STATUS: "true"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 512Mi

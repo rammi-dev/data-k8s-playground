@@ -1,0 +1,70 @@
+# CloudNativePG Test Cluster with S3 Backups to Ceph
+# High-availability configuration with automated backups
+#
+# Prerequisites:
+#   - Ceph deployed with S3 object store
+#   - S3 credentials configured (see README.md)
+#
+# IMPORTANT: This is commented out by default. To use:
+#   1. Create S3 user in Ceph for postgres backups
+#   2. Create secret with S3 credentials
+#   3. Uncomment this file and apply
+---
+# apiVersion: postgresql.cnpg.io/v1
+# kind: Cluster
+# metadata:
+#   name: test-cluster-s3
+# spec:
+#   # 3 instances for high availability
+#   instances: 3
+#   
+#   # PostgreSQL version (community image from ghcr.io)
+#   imageName: ghcr.io/cloudnative-pg/postgresql:17.2
+#   
+#   # Storage configuration (uses Ceph block storage)
+#   storage:
+#     storageClass: ceph-block
+#     size: 5Gi
+#   
+#   # Resource limits
+#   resources:
+#     requests:
+#       memory: "512Mi"
+#       cpu: "500m"
+#     limits:
+#       memory: "1Gi"
+#       cpu: "1000m"
+#   
+#   # Bootstrap with app database and user
+#   bootstrap:
+#     initdb:
+#       database: app
+#       owner: app
+#   
+#   # S3 backup configuration (Ceph RGW)
+#   backup:
+#     barmanObjectStore:
+#       destinationPath: s3://postgres-backups/test-cluster-s3
+#       endpointURL: http://rook-ceph-rgw-s3-store.rook-ceph.svc.cluster.local
+#       s3Credentials:
+#         accessKeyId:
+#           name: postgres-s3-creds
+#           key: ACCESS_KEY_ID
+#         secretAccessKey:
+#           name: postgres-s3-creds
+#           key: SECRET_ACCESS_KEY
+#       wal:
+#         compression: gzip
+#         encryption: AES256
+#       data:
+#         compression: gzip
+#         encryption: AES256
+#     
+#     # Retention policy
+#     retentionPolicy: "30d"
+#   
+#   # Scheduled backups (daily at 2 AM)
+#   # scheduledBackup:
+#   #   - name: daily-backup
+#   #     schedule: "0 2 * * *"
+#   #     backupOwnerReference: self

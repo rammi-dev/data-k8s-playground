@@ -4,74 +4,58 @@ Rook-Ceph provides distributed storage for Kubernetes using Ceph.
 
 ## Table of Contents
 
-- [Architecture Overview](#architecture-overview)
-- [Component Architecture](#component-architecture)
-- [Data Flow](#data-flow)
+- [Architecture](#architecture)
+  - [CRD Instances](#crd-instances)
+  - [Running Pods](#running-pods)
+- [Directory Structure](#directory-structure)
 - [Prerequisites](#prerequisites)
 - [Configuration](#configuration)
-- [Helm Charts](#helm-charts)
-- [CSI Drivers](#csi-drivers)
-- [Service Accounts & RBAC](#service-accounts--rbac)
-- [Object Store (S3)](#object-store-s3)
-- [Authentication (Keycloak + STS)](#authentication-keycloak--sts)
-- [Performance Tuning](#performance-tuning)
-- [Load Balancing](#load-balancing)
-- [Monitoring](#monitoring)
-- [Disaster Recovery](#disaster-recovery)
 - [Usage](#usage)
-  - [Stop / Start (Minikube Lifecycle)](#stop--start-minikube-lifecycle)
+- [Storage Classes](#storage-classes)
+- [S3 Object Store](#s3-object-store)
+- [Testing](#testing)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
-## Architecture Overview
+## Architecture
 
-### High-Level Deployment
+Two separate concerns, deployed independently:
+
+1. **Rook Operator** — Helm chart that deploys the operator, CSI drivers, and registers CRDs
+2. **Ceph Cluster** — Static CRD instances (`kubectl apply`) that the operator reads to deploy MONs, OSDs, RGW, MDS, etc.
 
 ```mermaid
 flowchart TB
-    subgraph K8s["Kubernetes Cluster"]
-        subgraph ControlPlane["Control Plane"]
-            RookOp["Rook Operator"]
-            CSI["CSI Drivers"]
-        end
-
-        subgraph DataPlane["Data Plane"]
-            subgraph Node1["Node 1"]
-                MON1["MON"]
-                OSD1["OSD"]
-                RGW1["RGW"]
-            end
-            subgraph Node2["Node 2"]
-                MON2["MON"]
-                OSD2["OSD"]
-                RGW2["RGW"]
-            end
-            subgraph Node3["Node 3"]
-                MON3["MON"]
-                OSD3["OSD"]
-                RGW3["RGW"]
-            end
-        end
-
-        MGR["MGR (Manager)"]
-        MDS["MDS (CephFS)"]
+    subgraph Operator["Phase 1: Operator (Helm)"]
+        RookOp["Rook Operator"]
+        CSI["CSI Drivers"]
+        CRDs["CRDs"]
     end
 
-    subgraph Storage["Storage Backend"]
-        RADOS["RADOS (Reliable Autonomic Distributed Object Store)"]
+    subgraph Cluster["Phase 2: Cluster (kubectl apply)"]
+        CC["CephCluster"]
+        BP["CephBlockPool"]
+        FS["CephFilesystem"]
+        OS["CephObjectStore"]
+        TB["Toolbox"]
     end
 
-    RookOp --> MON1 & MON2 & MON3
-    RookOp --> OSD1 & OSD2 & OSD3
-    RookOp --> RGW1 & RGW2 & RGW3
-    RookOp --> MGR
-    RookOp --> MDS
+    subgraph Running["Deployed by Operator"]
+        MON["MON"]
+        MGR["MGR"]
+        OSD["OSD ×2"]
+        RGW["RGW"]
+        MDS["MDS"]
+    end
 
-    OSD1 & OSD2 & OSD3 --> RADOS
-    MON1 <--> MON2 <--> MON3
+    RookOp -->|watches| Cluster
+    CC --> MON & MGR & OSD
+    OS --> RGW
+    FS --> MDS
 ```
 
-### Storage Services Architecture
+### Storage Services
 
 ```mermaid
 flowchart LR
@@ -81,242 +65,110 @@ flowchart LR
         Apps["Applications"]
     end
 
-    subgraph Services["Ceph Storage Services"]
+    subgraph Services["Storage Services"]
         RGW["RGW (S3 API)"]
         RBD["RBD (Block)"]
         CephFS["CephFS (File)"]
     end
 
-    subgraph Core["Ceph Core"]
-        RADOS["RADOS"]
-        subgraph Pools["Storage Pools"]
-            DataPool["Data Pool"]
-            MetaPool["Metadata Pool"]
-        end
-    end
-
-    subgraph Physical["Physical Storage"]
-        OSD1["OSD 1"]
-        OSD2["OSD 2"]
-        OSD3["OSD 3"]
-    end
-
     Spark -->|S3 API| RGW
     DB -->|Block Device| RBD
     Apps -->|POSIX| CephFS
-
-    RGW --> RADOS
-    RBD --> RADOS
-    CephFS --> RADOS
-
-    RADOS --> DataPool
-    RADOS --> MetaPool
-
-    DataPool --> OSD1 & OSD2 & OSD3
-    MetaPool --> OSD1 & OSD2 & OSD3
 ```
+
+### CRD Instances
+
+These are the custom resources applied by `create-cluster.sh` from `manifests/`. The Rook operator watches them and creates the corresponding Ceph daemons.
+
+| CRD | Instance | Manifest | Purpose |
+|-----|----------|----------|---------|
+| `CephCluster` | `rook-ceph` | `cephcluster.yaml` | Core cluster definition. Configures MON count, MGR modules, OSD storage nodes, resource limits, health checks, and `dataDirHostPath`. The operator creates MON, MGR, and OSD pods based on this. |
+| `CephBlockPool` | `replicapool` | `cephblockpool.yaml` | RADOS pool for RBD block volumes. Uses `size: 1` replication (dev). Backing pool for the `ceph-block` StorageClass. |
+| `CephBlockPool` | `builtin-mgr` | `cephblockpool.yaml` | Internal pool (`.mgr`) used by the Ceph manager for device health metrics and other internal data. |
+| `CephFilesystem` | `ceph-filesystem` | `cephfilesystem.yaml` | Creates a CephFS filesystem with one data pool and one metadata pool. The operator deploys MDS (Metadata Server) pods to serve it. |
+| `CephFilesystemSubVolumeGroup` | `ceph-filesystem-csi` | `cephfilesystem.yaml` | CSI subvolume group named `csi`. Required for the CephFS CSI driver to provision volumes within the filesystem. |
+| `CephObjectStore` | `s3-store` | `cephobjectstore.yaml` | S3-compatible object store. Creates data and metadata RADOS pools, and the operator deploys RGW (RADOS Gateway) pods to serve the S3 API on port 80. |
+| `CephObjectStoreUser` | `admin` | `s3-users/admin.yaml` | S3 admin user. The operator creates a Kubernetes secret (`rook-ceph-object-user-s3-store-admin`) with `AccessKey` and `SecretKey`. |
+
+### Running Pods
+
+Pods are grouped by source: operator Helm chart (Phase 1) or cluster CRDs (Phase 2).
+
+**Phase 1 — Operator (from Helm chart)**
+
+| Pod | Type | Count | Purpose |
+|-----|------|-------|---------|
+| `rook-ceph-operator` | Deployment | 1 | Watches CRDs and reconciles Ceph daemons. Runs OSD prepare jobs, manages MON quorum, handles upgrades. |
+| `rbd.csi.ceph.com-ctrlplugin` | Deployment | 2 | RBD CSI controller. Handles volume provisioning (create/delete/expand) for block storage PVCs. Leader-elected. |
+| `rbd.csi.ceph.com-nodeplugin` | DaemonSet | 1/node | RBD CSI node plugin. Maps RBD images to block devices and mounts them into pods on each node. |
+| `cephfs.csi.ceph.com-ctrlplugin` | Deployment | 2 | CephFS CSI controller. Handles volume provisioning for filesystem PVCs. Leader-elected. |
+| `cephfs.csi.ceph.com-nodeplugin` | DaemonSet | 1/node | CephFS CSI node plugin. Mounts CephFS volumes into pods on each node. |
+| `ceph-csi-controller-manager` | Deployment | 1 | Manages CSI driver lifecycle and addon configuration. |
+
+**Phase 2 — Cluster (from CRD manifests)**
+
+| Pod | Type | Count | Triggered by | Purpose |
+|-----|------|-------|-------------|---------|
+| `rook-ceph-mon-*` | Deployment | 1 | CephCluster | Monitor daemon. Maintains cluster maps (OSD map, MON map, CRUSH map). Single MON in dev (3 in production for quorum). |
+| `rook-ceph-mgr-*` | Deployment | 1 | CephCluster | Manager daemon. Runs modules: `rook` (orchestration), `pg_autoscaler` (PG management), `dashboard` (web UI). |
+| `rook-ceph-osd-*` | Deployment | 2 | CephCluster | Object Storage Daemons. One per raw disk (minikube-m02, minikube-m03). Store data using BlueStore directly on block devices. |
+| `rook-ceph-osd-prepare-*` | Job | 1/node | CephCluster | Scans node disks, prepares BlueStore (writes labels at 1GB and 10GB offsets). Runs on each storage node at cluster creation and after operator restart. |
+| `rook-ceph-mds-*` | Deployment | 1 | CephFilesystem | Metadata Server for CephFS. Handles POSIX filesystem metadata (directory tree, permissions, locks). |
+| `rook-ceph-rgw-*` | Deployment | 1 | CephObjectStore | RADOS Gateway. Serves S3 API, handles authentication (SigV4), translates S3 operations to RADOS objects. |
+| `rook-ceph-tools` | Deployment | 1 | toolbox.yaml | Admin toolbox with `ceph` CLI. Connects to MON using the admin keyring for cluster management commands. |
+| `rook-ceph-exporter-*` | Deployment | 1/node | CephCluster | Exports per-node Ceph metrics for Prometheus scraping. |
 
 ---
 
-## Component Architecture
+## Directory Structure
 
-### Rook Operator
-
-```mermaid
-flowchart TB
-    subgraph RookOperator["Rook Operator Pod"]
-        Controller["Controller Manager"]
-        Webhooks["Admission Webhooks"]
-
-        subgraph Watchers["CRD Watchers"]
-            ClusterWatch["CephCluster"]
-            PoolWatch["CephBlockPool"]
-            FSWatch["CephFilesystem"]
-            ObjWatch["CephObjectStore"]
-            UserWatch["CephObjectStoreUser"]
-        end
-    end
-
-    subgraph ManagedResources["Managed Resources"]
-        MON["MON Deployments"]
-        OSD["OSD Deployments"]
-        MGR["MGR Deployment"]
-        RGW["RGW Deployments"]
-        MDS["MDS Deployments"]
-    end
-
-    Controller --> Watchers
-    ClusterWatch --> MON & OSD & MGR
-    ObjWatch --> RGW
-    FSWatch --> MDS
 ```
-
-### Monitor (MON) Quorum
-
-```mermaid
-flowchart LR
-    subgraph Quorum["MON Quorum (Paxos Consensus)"]
-        MON1["MON 1<br/>(Leader)"]
-        MON2["MON 2"]
-        MON3["MON 3"]
-    end
-
-    subgraph ClusterMap["Cluster Maps"]
-        MonMap["Monitor Map"]
-        OSDMap["OSD Map"]
-        PGMap["PG Map"]
-        CRUSHMap["CRUSH Map"]
-    end
-
-    MON1 <-->|Consensus| MON2
-    MON2 <-->|Consensus| MON3
-    MON3 <-->|Consensus| MON1
-
-    MON1 --> ClusterMap
-    MON2 --> ClusterMap
-    MON3 --> ClusterMap
-```
-
-### OSD Data Flow
-
-```mermaid
-flowchart TB
-    subgraph Client["Client"]
-        Write["Write Request"]
-    end
-
-    subgraph PrimaryOSD["Primary OSD"]
-        Journal1["Journal/WAL"]
-        Store1["BlueStore"]
-    end
-
-    subgraph ReplicaOSD1["Replica OSD 1"]
-        Journal2["Journal/WAL"]
-        Store2["BlueStore"]
-    end
-
-    subgraph ReplicaOSD2["Replica OSD 2"]
-        Journal3["Journal/WAL"]
-        Store3["BlueStore"]
-    end
-
-    Write -->|1. Send Data| PrimaryOSD
-    PrimaryOSD -->|2. Replicate| ReplicaOSD1
-    PrimaryOSD -->|2. Replicate| ReplicaOSD2
-    ReplicaOSD1 -->|3. ACK| PrimaryOSD
-    ReplicaOSD2 -->|3. ACK| PrimaryOSD
-    PrimaryOSD -->|4. Commit ACK| Write
-
-    Journal1 --> Store1
-    Journal2 --> Store2
-    Journal3 --> Store3
-```
-
----
-
-## Data Flow
-
-### S3 Request Flow
-
-```mermaid
-sequenceDiagram
-    participant App as Application
-    participant LB as Load Balancer
-    participant RGW as RGW Pod
-    participant MON as MON
-    participant OSD as OSD
-
-    App->>LB: S3 PUT Request
-    LB->>RGW: Forward (Round Robin)
-    RGW->>RGW: Authenticate (SigV4/STS)
-    RGW->>MON: Get Cluster Map
-    MON-->>RGW: Return OSD locations
-    RGW->>OSD: Write Object (Primary)
-    OSD->>OSD: Replicate to peers
-    OSD-->>RGW: Write ACK
-    RGW-->>LB: HTTP 200 OK
-    LB-->>App: Success
-```
-
-### Multipart Upload Flow
-
-```mermaid
-sequenceDiagram
-    participant App as Application
-    participant RGW1 as RGW Pod A
-    participant RGW2 as RGW Pod B
-    participant RGW3 as RGW Pod C
-    participant RADOS as RADOS
-
-    App->>RGW1: InitiateMultipartUpload
-    RGW1->>RADOS: Store UploadID metadata
-    RGW1-->>App: Return UploadID
-
-    App->>RGW2: UploadPart 1 (with UploadID)
-    RGW2->>RADOS: Lookup UploadID
-    RGW2->>RADOS: Store Part 1
-    RGW2-->>App: ETag Part 1
-
-    App->>RGW3: UploadPart 2 (with UploadID)
-    RGW3->>RADOS: Lookup UploadID
-    RGW3->>RADOS: Store Part 2
-    RGW3-->>App: ETag Part 2
-
-    App->>RGW1: CompleteMultipartUpload
-    RGW1->>RADOS: Assemble parts
-    RGW1-->>App: Object Created
-
-    Note over RGW1,RGW3: No session stickiness needed<br/>UploadID tracked in RADOS
-```
-
-### CSI Volume Provisioning
-
-```mermaid
-sequenceDiagram
-    participant User as User/Pod
-    participant K8s as Kubernetes API
-    participant CSI as CSI Provisioner
-    participant Rook as Rook Operator
-    participant Ceph as Ceph Cluster
-
-    User->>K8s: Create PVC
-    K8s->>CSI: Volume provision request
-    CSI->>Ceph: Create RBD image
-    Ceph-->>CSI: Image created
-    CSI->>K8s: Create PV
-    K8s->>K8s: Bind PVC to PV
-    K8s-->>User: PVC Ready
-
-    User->>K8s: Create Pod with PVC
-    K8s->>CSI: Stage volume (node)
-    CSI->>Ceph: Map RBD device
-    K8s->>CSI: Publish volume (pod)
-    CSI-->>K8s: Mount complete
-    K8s-->>User: Pod Running
+components/ceph/
+├── helm/
+│   └── Chart.yaml                     # Wrapper chart — tracks rook-ceph operator version
+├── manifests/                         # Static cluster CRD definitions (hand-maintained)
+│   ├── cephcluster.yaml               # CephCluster CR
+│   ├── cephblockpool.yaml             # CephBlockPool + StorageClass (ceph-block)
+│   ├── cephfilesystem.yaml            # CephFilesystem + StorageClass (ceph-filesystem)
+│   ├── cephobjectstore.yaml           # CephObjectStore + StorageClass (ceph-bucket)
+│   ├── toolbox.yaml                   # Toolbox deployment (ceph CLI)
+│   └── s3-users/
+│       └── admin.yaml                 # CephObjectStoreUser (S3 admin)
+├── deployment/rendered/               # Rendered operator templates (reference, gitignored)
+├── scripts/
+│   ├── build.sh                       # Deploy Rook operator via Helm
+│   ├── create-cluster.sh              # Apply manifests/, wait for cluster ready
+│   ├── destroy.sh                     # Teardown (cluster | operator | all)
+│   ├── regenerate-rendered.sh         # Render operator Helm templates (reference only)
+│   ├── status.sh                      # Check Ceph health
+│   ├── dashboard.sh                   # Open Ceph dashboard
+│   └── test/
+│       ├── test-s3.sh                 # Test S3 (create bucket, put/get/delete)
+│       ├── test-block-storage.sh      # Test RBD (PVC + pod)
+│       └── test-filesystem.sh         # Test CephFS (PVC + pod)
+└── README.md
 ```
 
 ---
 
 ## Prerequisites
 
-- Minikube cluster with at least 3 nodes (for production-like setup)
-- Storage: raw block devices or directories for OSDs
-- Minimum resources:
+- Minikube cluster with 3 nodes (1 control plane + 2 workers)
+- Raw block devices on worker nodes (no filesystem, no mounted partitions)
+- Ceph enabled in `config.yaml`
 
-| Component | CPU | Memory | Count |
-|-----------|-----|--------|-------|
-| Rook Operator | 0.5 | 512Mi | 1 |
-| MON | 0.5 | 1Gi | 3 |
-| OSD | 1 | 2Gi | 3+ |
-| MGR | 0.5 | 512Mi | 1 |
-| RGW | 1 | 2Gi | 2+ |
-| **Total Min** | **5** | **10Gi** | - |
+### Minikube Hyper-V Notes
+
+- Worker nodes (`minikube-m02`, `minikube-m03`) each have a 20GB raw disk for OSDs
+- Control plane node has no raw disk — excluded from storage via `nodes:` in CephCluster
+- `dataDirHostPath` must be `/tmp/hostpath_pv/rook` (root filesystem is tmpfs, wiped on restart)
+- Device names (`/dev/sdX`) are unstable across reboots — Rook v1.19 handles this via udev fallback
 
 ---
 
 ## Configuration
 
-Enable Ceph in `config.yaml`:
+In `config.yaml`:
 
 ```yaml
 components:
@@ -324,547 +176,94 @@ components:
     enabled: true
     namespace: "rook-ceph"
     chart_repo: "https://charts.rook.io/release"
-    operator_chart: "rook-ceph"
-    cluster_chart: "rook-ceph-cluster"
-    chart_version: "v1.13.0"
-
-    storage:
-      use_all_nodes: true
-      use_all_devices: false
-      directories:
-        - path: /var/lib/rook
-
-    object_store:
-      enabled: true
-      name: "s3-store"
-      port: 80
-      instances: 2
+    chart_version: "v1.19.1"
 ```
 
----
-
-## Helm Charts
-
-Rook provides two Helm charts:
-
-```mermaid
-flowchart LR
-    subgraph Charts["Helm Charts"]
-        OpChart["rook-ceph<br/>(Operator Chart)"]
-        ClusterChart["rook-ceph-cluster<br/>(Cluster Chart)"]
-    end
-
-    subgraph Deploys1["Operator Chart Deploys"]
-        Operator["Rook Operator"]
-        CSIDriver["CSI Drivers"]
-        CRDs["CRDs"]
-    end
-
-    subgraph Deploys2["Cluster Chart Deploys"]
-        CephCluster["CephCluster CR"]
-        StorageClass["StorageClasses"]
-        Toolbox["Toolbox Pod"]
-    end
-
-    OpChart --> Deploys1
-    ClusterChart --> Deploys2
-    Deploys1 -->|Must deploy first| Deploys2
-```
-
-### Chart.yaml
-
-```yaml
-apiVersion: v2
-name: rook-ceph
-description: Rook-Ceph storage deployment
-type: application
-version: 1.0.0
-
-dependencies:
-  - name: rook-ceph
-    version: "v1.13.0"
-    repository: "https://charts.rook.io/release"
-    alias: operator
-
-  - name: rook-ceph-cluster
-    version: "v1.13.0"
-    repository: "https://charts.rook.io/release"
-    alias: cluster
-```
-
----
-
-## CSI Drivers
-
-### CSI Architecture
-
-```mermaid
-flowchart TB
-    subgraph ControllerPlugin["CSI Controller (Deployment)"]
-        Provisioner["csi-provisioner"]
-        Attacher["csi-attacher"]
-        Snapshotter["csi-snapshotter"]
-        Resizer["csi-resizer"]
-        ControllerDriver["cephcsi driver"]
-    end
-
-    subgraph NodePlugin["CSI Node (DaemonSet)"]
-        NodeRegistrar["node-driver-registrar"]
-        NodeDriver["cephcsi driver"]
-    end
-
-    subgraph K8s["Kubernetes"]
-        PVC["PVC"]
-        PV["PV"]
-        Pod["Pod"]
-    end
-
-    PVC -->|Create| Provisioner
-    Provisioner --> ControllerDriver
-    ControllerDriver -->|Create Volume| Ceph[(Ceph)]
-
-    Pod -->|Mount| NodeRegistrar
-    NodeRegistrar --> NodeDriver
-    NodeDriver -->|Map/Mount| Ceph
-```
-
-### CSI Configuration
-
-```yaml
-csi:
-  enableRbdDriver: true
-  enableCephfsDriver: true
-  kubeletDirPath: /var/lib/kubelet
-  provisionerReplicas: 1  # Dev: 1, Prod: 2+
-  enableCSISnapshotter: true
-
-  csiRBDProvisionerResource: |
-    - name: csi-provisioner
-      resource:
-        requests:
-          memory: 64Mi
-          cpu: 50m
-        limits:
-          memory: 256Mi
-          cpu: 200m
-```
-
-### Provisioner Replicas
-
-```mermaid
-flowchart LR
-    subgraph Dev["Development (replicas: 1)"]
-        P1["Provisioner<br/>(Active)"]
-    end
-
-    subgraph Prod["Production (replicas: 2+)"]
-        P2["Provisioner 1<br/>(Leader)"]
-        P3["Provisioner 2<br/>(Standby)"]
-        P4["Provisioner 3<br/>(Standby)"]
-    end
-
-    P2 -->|Leader Election| P3
-    P3 -->|Failover| P2
-```
-
----
-
-## Service Accounts & RBAC
-
-Rook **automatically creates** all required service accounts:
-
-| Service Account | Purpose |
-|-----------------|---------|
-| `rook-ceph-system` | Operator pod |
-| `rook-ceph-osd` | OSD pods |
-| `rook-ceph-mgr` | Manager pod |
-| `rook-ceph-rgw` | RGW pods |
-| `rook-csi-rbd-provisioner-sa` | RBD CSI provisioner |
-| `rook-csi-rbd-plugin-sa` | RBD CSI node plugin |
-| `rook-csi-cephfs-provisioner-sa` | CephFS CSI provisioner |
-| `rook-csi-cephfs-plugin-sa` | CephFS CSI node plugin |
-
-**No manual service account creation needed.**
-
----
-
-## Object Store (S3)
-
-### RGW Architecture
-
-```mermaid
-flowchart TB
-    subgraph Clients["Clients"]
-        Spark["Spark"]
-        Iceberg["Iceberg"]
-        S3Cli["AWS CLI"]
-    end
-
-    subgraph LoadBalancer["Load Balancer"]
-        LB["Service/Ingress<br/>(Round Robin)"]
-    end
-
-    subgraph RGWPods["RGW Pods (Scalable)"]
-        RGW1["RGW 1"]
-        RGW2["RGW 2"]
-        RGW3["RGW 3"]
-    end
-
-    subgraph Pools["Ceph Pools"]
-        DataPool["Data Pool<br/>(Replicated/EC)"]
-        MetaPool["Metadata Pool<br/>(Replicated)"]
-        IndexPool["Index Pool<br/>(Replicated)"]
-    end
-
-    Clients --> LB
-    LB --> RGW1 & RGW2 & RGW3
-    RGW1 & RGW2 & RGW3 --> DataPool & MetaPool & IndexPool
-```
-
-### CephObjectStore CR
-
-```yaml
-apiVersion: ceph.rook.io/v1
-kind: CephObjectStore
-metadata:
-  name: s3-store
-  namespace: rook-ceph
-spec:
-  metadataPool:
-    replicated:
-      size: 2
-  dataPool:
-    replicated:
-      size: 2
-    # OR erasure coding for large objects
-    # erasureCoded:
-    #   dataChunks: 4
-    #   codingChunks: 2
-
-  gateway:
-    port: 80
-    securePort: 443
-    instances: 2
-
-    resources:
-      limits:
-        cpu: "4"
-        memory: "8Gi"
-      requests:
-        cpu: "2"
-        memory: "4Gi"
-
-    placement:
-      podAntiAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchLabels:
-                app: rook-ceph-rgw
-            topologyKey: kubernetes.io/hostname
-```
-
----
-
-## Authentication (Keycloak + STS)
-
-### Auth Flow
-
-```mermaid
-sequenceDiagram
-    participant App as Application
-    participant KC as Keycloak
-    participant RGW as RGW (STS)
-    participant S3 as RGW (S3)
-
-    App->>KC: 1. Authenticate (user/pass or client credentials)
-    KC-->>App: 2. JWT Token
-
-    App->>RGW: 3. AssumeRoleWithWebIdentity(JWT)
-    RGW->>KC: 4. Validate JWT signature
-    KC-->>RGW: 5. Token valid
-    RGW->>RGW: 6. Check IAM role policy
-    RGW-->>App: 7. Temporary credentials (AccessKey, SecretKey, SessionToken)
-
-    App->>S3: 8. S3 request with temp credentials
-    S3-->>App: 9. Success
-```
-
-### Configuration
-
-```yaml
-# Enable in CephCluster
-spec:
-  cephConfig:
-    global:
-      rgw_s3_auth_use_sts: "true"
-      rgw_sts_key: "your-sts-signing-key-min-16-characters"
-      rgw_s3_auth_use_oidc: "true"
-```
-
-### Register OIDC Provider
-
-```bash
-radosgw-admin oidc provider create \
-  --provider-url="https://keycloak.example.com/realms/myrealm" \
-  --client-id="ceph-rgw" \
-  --thumbprint="<keycloak-certificate-thumbprint>"
-```
-
-### Create IAM Role
-
-```bash
-radosgw-admin role create \
-  --role-name=keycloak-s3-role \
-  --path=/ \
-  --assume-role-policy-doc='{
-    "Version": "2012-10-17",
-    "Statement": [{
-      "Effect": "Allow",
-      "Principal": {
-        "Federated": "arn:aws:iam:::oidc-provider/keycloak.example.com/realms/myrealm"
-      },
-      "Action": "sts:AssumeRoleWithWebIdentity",
-      "Condition": {
-        "StringEquals": {
-          "keycloak.example.com/realms/myrealm:aud": "ceph-rgw"
-        }
-      }
-    }]
-  }'
-```
-
----
-
-## Performance Tuning
-
-### Scaling Guidelines
-
-```mermaid
-flowchart LR
-    subgraph Workload["Workload Size"]
-        Dev["Dev<br/>< 100 req/s"]
-        Small["Small<br/>< 1K req/s"]
-        Medium["Medium<br/>1K-10K req/s"]
-        Large["Large<br/>10K+ req/s"]
-    end
-
-    subgraph Config["RGW Config"]
-        Dev --> D["1 instance<br/>1 CPU, 2Gi"]
-        Small --> S["2 instances<br/>2 CPU, 4Gi"]
-        Medium --> M["3-5 instances<br/>4 CPU, 8Gi"]
-        Large --> L["5-10+ instances<br/>8 CPU, 16Gi"]
-    end
-```
-
-### RGW Performance Config
-
-```yaml
-spec:
-  cephConfig:
-    global:
-      # Thread pools
-      rgw_thread_pool_size: "512"
-      rgw_num_async_rados_threads: "128"
-
-      # Connections
-      rgw_frontends: "beast port=80 num_threads=128"
-      rgw_max_concurrent_requests: "1024"
-
-      # Buffer sizes (for large Iceberg parquet files)
-      rgw_put_obj_min_window_size: "16777216"   # 16MB
-      rgw_get_obj_max_req_size: "16777216"      # 16MB
-```
-
-### Pool PG Calculation
-
-```
-PGs = (OSDs × 100) / replicas
-
-Example: 9 OSDs, 3x replication
-PGs = (9 × 100) / 3 = 300 → round to 256 (power of 2)
-```
-
-### Spark/Iceberg Client Config
-
-```python
-spark = SparkSession.builder \
-    .config("spark.hadoop.fs.s3a.connection.maximum", "200") \
-    .config("spark.hadoop.fs.s3a.threads.max", "64") \
-    .config("spark.hadoop.fs.s3a.multipart.size", "64M") \
-    .config("spark.hadoop.fs.s3a.fast.upload", "true") \
-    .config("spark.hadoop.fs.s3a.fast.upload.buffer", "bytebuffer") \
-    .getOrCreate()
-```
-
----
-
-## Load Balancing
-
-### No Session Stickiness Required
-
-```mermaid
-flowchart LR
-    subgraph Why["Why Stateless Works"]
-        A["S3 Protocol<br/>Stateless by design"]
-        B["Auth per request<br/>AWS SigV4"]
-        C["Multipart tracked<br/>by UploadID in RADOS"]
-        D["STS tokens<br/>cluster-wide valid"]
-    end
-
-    subgraph Result["Result"]
-        R["Round-robin LB<br/>No stickiness needed"]
-    end
-
-    A & B & C & D --> Result
-```
-
-### Recommended Config
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: rgw-lb
-spec:
-  type: LoadBalancer
-  sessionAffinity: None  # Round-robin
-  selector:
-    app: rook-ceph-rgw
-  ports:
-    - port: 80
-```
-
-### Ingress with Connection Pooling
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: rgw-ingress
-  annotations:
-    nginx.ingress.kubernetes.io/load-balance: "round_robin"
-    nginx.ingress.kubernetes.io/upstream-keepalive-connections: "320"
-    nginx.ingress.kubernetes.io/upstream-keepalive-timeout: "60"
-```
-
----
-
-## Monitoring
-
-### Metrics Architecture
-
-```mermaid
-flowchart LR
-    subgraph Ceph["Ceph Components"]
-        MGR["MGR<br/>(Prometheus Module)"]
-        RGW["RGW Metrics"]
-        OSD["OSD Metrics"]
-    end
-
-    subgraph Monitoring["Monitoring Stack"]
-        Prom["Prometheus"]
-        Graf["Grafana"]
-        Alert["Alertmanager"]
-    end
-
-    MGR --> Prom
-    RGW --> Prom
-    OSD --> Prom
-    Prom --> Graf
-    Prom --> Alert
-```
-
-### Key Metrics
-
-| Metric | Query | Alert Threshold |
-|--------|-------|-----------------|
-| RGW Request Rate | `rate(ceph_rgw_req[5m])` | - |
-| RGW Latency (p99) | `histogram_quantile(0.99, rate(ceph_rgw_op_latency_bucket[5m]))` | > 500ms |
-| Cluster Health | `ceph_health_status` | != 0 |
-| OSD Latency | `ceph_osd_apply_latency_ms` | > 100ms |
-
-### HPA for RGW
-
-```yaml
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: rgw-hpa
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: rook-ceph-rgw-s3-store-a
-  minReplicas: 2
-  maxReplicas: 10
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          averageUtilization: 70
-```
-
----
-
-## Disaster Recovery
-
-### Backup Strategy
-
-```mermaid
-flowchart TB
-    subgraph Primary["Primary Cluster"]
-        RGW1["RGW"]
-        Pool1["Data Pools"]
-    end
-
-    subgraph Backup["Backup Options"]
-        RGWMirror["RGW Multisite<br/>(Async Replication)"]
-        S3Sync["rclone/s3cmd<br/>(Bucket Sync)"]
-        Snapshot["Ceph Snapshots<br/>(Point-in-time)"]
-    end
-
-    subgraph Secondary["Secondary/Backup"]
-        S3Backup["S3-compatible<br/>Backup Storage"]
-    end
-
-    Primary --> RGWMirror --> Secondary
-    Primary --> S3Sync --> Secondary
-    Primary --> Snapshot
-```
+Cluster configuration is in the static manifests under `manifests/`. These are hand-maintained — edit them directly to change pool sizes, resource limits, etc.
 
 ---
 
 ## Usage
 
-### Deploy Ceph
+### Deploy (Full Stack)
 
 ```bash
-cd /vagrant
+# Phase 1: Deploy operator
 ./components/ceph/scripts/build.sh
+
+# Phase 2: Create cluster
+./components/ceph/scripts/create-cluster.sh
 ```
 
 ### Check Status
 
 ```bash
 ./components/ceph/scripts/status.sh
+
+# Or manually:
+kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph status
 ```
 
-Or manually:
-```bash
-kubectl -n rook-ceph get pods
-kubectl -n rook-ceph get cephcluster
-kubectl -n rook-ceph exec -it deploy/rook-ceph-tools -- ceph status
-```
-
-### Test S3
+### Open Dashboard
 
 ```bash
-./components/ceph/scripts/test-s3.sh
+./components/ceph/scripts/dashboard.sh
 ```
 
-### Get S3 Credentials
+### Destroy
+
+```bash
+# Remove cluster only (CRDs + disk data), keep operator
+./components/ceph/scripts/destroy.sh cluster
+
+# Remove operator only (Helm release + CRDs + namespace)
+./components/ceph/scripts/destroy.sh operator
+
+# Full teardown (cluster + operator)
+./components/ceph/scripts/destroy.sh all
+```
+
+### Regenerate Rendered Templates
+
+For reference only — see what the operator Helm chart produces without deploying:
+
+```bash
+./components/ceph/scripts/regenerate-rendered.sh
+```
+
+---
+
+## Storage Classes
+
+| StorageClass | Type | Access Modes | Provisioner | Default |
+|-------------|------|-------------|-------------|---------|
+| `ceph-block` | RBD (block) | RWO | `rook-ceph.rbd.csi.ceph.com` | Yes |
+| `ceph-filesystem` | CephFS (file) | RWX | `rook-ceph.cephfs.csi.ceph.com` | No |
+| `ceph-bucket` | S3 (object) | - | `rook-ceph.ceph.rook.io/bucket` | No |
+
+StorageClasses include CSI secret references for provisioner and node-stage authentication.
+
+### Example PVC
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-data
+spec:
+  accessModes:
+    - ReadWriteOnce       # RWX for ceph-filesystem
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 10Gi
+```
+
+---
+
+## S3 Object Store
+
+### Get Credentials
 
 ```bash
 # Access key
@@ -876,94 +275,88 @@ kubectl -n rook-ceph get secret rook-ceph-object-user-s3-store-admin \
   -o jsonpath='{.data.SecretKey}' | base64 -d && echo
 ```
 
-### Configure AWS CLI
-
-1. Install AWS CLI v2 (not available via apt):
+### Port-Forward and Use
 
 ```bash
-curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
-unzip -q awscliv2.zip
-sudo ./aws/install
-rm -rf aws awscliv2.zip
-```
-
-2. Set up port-forward to the RGW service (ClusterIP is not reachable from WSL):
-
-```bash
+# Port-forward RGW (ClusterIP not reachable from WSL)
 kubectl -n rook-ceph port-forward svc/rook-ceph-rgw-s3-store 7480:80 &
-```
 
-3. Export credentials and endpoint:
-
-```bash
+# Export credentials
 export AWS_ACCESS_KEY_ID=$(kubectl -n rook-ceph get secret rook-ceph-object-user-s3-store-admin -o jsonpath='{.data.AccessKey}' | base64 -d)
 export AWS_SECRET_ACCESS_KEY=$(kubectl -n rook-ceph get secret rook-ceph-object-user-s3-store-admin -o jsonpath='{.data.SecretKey}' | base64 -d)
 export AWS_ENDPOINT_URL=http://localhost:7480
-export AWS_DEFAULT_REGION=us-east-1  # Required: prevents InvalidLocationConstraint error
-```
+export AWS_DEFAULT_REGION=us-east-1
 
-4. Use AWS CLI:
-
-```bash
+# Use AWS CLI
 aws s3 mb s3://my-bucket
 aws s3 cp myfile.txt s3://my-bucket/
 aws s3 ls s3://my-bucket/
 ```
 
-### Stop / Start (Minikube Lifecycle)
+---
 
-Ceph data persists across minikube restarts. Use the lifecycle scripts to avoid OSD failures:
-
-```bash
-# Before minikube stop (from WSL)
-./components/ceph/scripts/pre-stop.sh
-# Then: minikube stop (from PowerShell)
-
-# After minikube start (from WSL)
-./components/ceph/scripts/post-start.sh
-# Verify:
-./components/ceph/scripts/status.sh
-```
-
-**pre-stop.sh** sets the OSD `noout` flag, flushes journals, and scales down services in order (RGW -> MDS -> OSD -> MGR -> MON -> operator).
-
-**post-start.sh** scales services back up in order. If OSDs fail (e.g. dirty restart without pre-stop), it attempts to repair device paths by restarting the operator. If that fails, it reports the issue and tells you to run `destroy.sh && build.sh` manually (never destroys data automatically).
-
-See [minikube-hyperv README](../../scripts/minikube-hyperv/README.md#stop-cluster) for the full stop/start procedure.
-
-### Remove Ceph
+## Testing
 
 ```bash
-./components/ceph/scripts/destroy.sh
+# S3: create bucket, upload, download, verify, cleanup
+./components/ceph/scripts/test/test-s3.sh
+
+# Block storage: PVC + pod + write/read
+./components/ceph/scripts/test/test-block-storage.sh
+
+# Filesystem: CephFS PVC (RWX) + pod + write/read
+./components/ceph/scripts/test/test-filesystem.sh
 ```
 
 ---
 
-## File Structure
+## Troubleshooting
 
-```
-components/ceph/
-├── helm/
-│   ├── values.yaml             # Configuration overrides
-│   └── templates/
-│       ├── cephcluster.yaml    # CephCluster CR
-│       ├── objectstore.yaml    # S3 gateway + admin user
-│       └── storageclass.yaml   # StorageClass definitions
-├── scripts/
-│   ├── build.sh                # Deploy Ceph
-│   ├── destroy.sh              # Remove Ceph (wipes disks)
-│   ├── pre-stop.sh             # Graceful shutdown before minikube stop
-│   ├── post-start.sh           # Recovery after minikube start
-│   ├── status.sh               # Check Ceph health
-│   └── test-s3.sh              # Test S3 connectivity
-└── README.md                   # This file
+### OSD prepare job hangs
+
+If the operator is stuck waiting for OSD prepare jobs, check which nodes are being scanned:
+
+```bash
+kubectl -n rook-ceph get pods -l app=rook-ceph-osd-prepare
 ```
 
----
+The control plane node may not have a raw disk. Ensure `useAllNodes: false` with explicit `nodes:` in `cephcluster.yaml`.
 
-## Notes
+### StorageClass provisioning fails with "secret is empty"
 
-- Single-node minikube: Ceph runs in degraded mode (testing only)
-- Production: Requires 3+ nodes with dedicated storage devices
-- Erasure coding: Better storage efficiency for large Iceberg parquet files
-- STS + OIDC: Recommended for multi-tenant or production environments
+StorageClasses need CSI secret references. Verify the StorageClass has `csi.storage.k8s.io/provisioner-secret-name` and `csi.storage.k8s.io/node-stage-secret-name` parameters:
+
+```bash
+kubectl get storageclass ceph-block -o yaml
+```
+
+Since SC parameters are immutable, delete and re-apply if missing:
+
+```bash
+kubectl delete storageclass ceph-block
+kubectl apply -f components/ceph/manifests/cephblockpool.yaml -n rook-ceph
+```
+
+### Stale state from previous cluster
+
+If OSDs won't start after a redeploy, disks may have bluestore data from a previous cluster:
+
+```bash
+./components/ceph/scripts/destroy.sh cluster
+```
+
+This wipes disks completely (Ceph v20 stores bluestore labels at 1GB and 10GB offsets).
+
+### Check operator logs
+
+```bash
+kubectl -n rook-ceph logs deploy/rook-ceph-operator --tail=50
+```
+
+### Ceph health from toolbox
+
+```bash
+kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph status
+kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph osd tree
+kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph df
+```

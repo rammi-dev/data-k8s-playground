@@ -1,0 +1,24 @@
+# Strimzi Kafka Operator Playground Values
+# Configures Strimzi via Helm dependency
+#
+# Deploy with:
+#   helm dependency update
+#   helm upgrade --install strimzi . -n kafka --create-namespace
+#
+# See: https://strimzi.io/docs/operators/latest/configuring.html
+
+# ============================================
+# Strimzi Operator Configuration
+# ============================================
+strimzi-kafka-operator:
+  # Watch all namespaces for Kafka CRDs
+  watchAnyNamespace: true
+
+  # Operator resources (conservative for dev)
+  resources:
+    requests:
+      cpu: 200m
+      memory: 384Mi
+    limits:
+      cpu: 1000m
+      memory: 384Mi

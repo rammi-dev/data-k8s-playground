@@ -1,0 +1,60 @@
+# Eventing demo — Kafka Broker + PingSource + event-display
+# Tests: Broker creation, Trigger filtering, event delivery, scale-from-zero
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eventing-demo
+---
+apiVersion: eventing.knative.dev/v1
+kind: Broker
+metadata:
+  name: default
+  namespace: eventing-demo
+  annotations:
+    eventing.knative.dev/broker.class: Kafka
+spec:
+  config:
+    apiVersion: v1
+    kind: ConfigMap
+    name: kafka-broker-config
+    namespace: knative-eventing
+---
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: event-display
+  namespace: eventing-demo
+spec:
+  template:
+    spec:
+      containers:
+        - image: gcr.io/knative-releases/knative.dev/eventing/cmd/event_display
+---
+apiVersion: eventing.knative.dev/v1
+kind: Trigger
+metadata:
+  name: display-trigger
+  namespace: eventing-demo
+spec:
+  broker: default
+  subscriber:
+    ref:
+      apiVersion: serving.knative.dev/v1
+      kind: Service
+      name: event-display
+---
+apiVersion: sources.knative.dev/v1
+kind: PingSource
+metadata:
+  name: test-ping
+  namespace: eventing-demo
+spec:
+  schedule: "*/1 * * * *"
+  contentType: "application/json"
+  data: '{"message": "Hello from PingSource!"}'
+  sink:
+    ref:
+      apiVersion: eventing.knative.dev/v1
+      kind: Broker
+      name: default

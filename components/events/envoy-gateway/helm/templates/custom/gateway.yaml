@@ -1,0 +1,19 @@
+# Gateway API resources for Knative ingress
+# The GatewayClass 'eg' is created automatically by the Envoy Gateway chart
+#
+# Phase 3 migration: change gatewayClassName to 'istio'
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: knative-gateway
+  namespace: knative-serving
+spec:
+  gatewayClassName: eg
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All

@@ -1,0 +1,8 @@
+# Istio Overrides — environment-specific tweaks
+
+# istiod:
+#   pilot:
+#     resources:
+#       requests:
+#         cpu: 500m
+#         memory: 512Mi

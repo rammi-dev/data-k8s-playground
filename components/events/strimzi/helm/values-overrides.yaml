@@ -1,0 +1,5 @@
+# Strimzi Overrides — environment-specific tweaks
+# Layered on top of values.yaml during helm install
+#
+# Usage in build.sh:
+#   helm upgrade --install strimzi . -f values.yaml -f values-overrides.yaml

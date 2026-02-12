@@ -233,9 +233,8 @@ Write-Host "[INFO] Waiting for nodes to be ready..." -ForegroundColor Yellow
 & $KUBECTL_EXE wait --for=condition=Ready nodes --all --timeout=300s
 
 # Enable addons
+# Note: ingress/ingress-dns removed — Envoy Gateway / Istio handle Gateway API ingress
 Write-Host "[INFO] Enabling addons..." -ForegroundColor Yellow
-& $MINIKUBE_EXE addons enable ingress
-& $MINIKUBE_EXE addons enable ingress-dns
 & $MINIKUBE_EXE addons enable dashboard
 & $MINIKUBE_EXE addons enable metrics-server
 & $MINIKUBE_EXE addons enable registry

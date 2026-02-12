@@ -108,6 +108,43 @@ AIRFLOW_CHART_REPO=$(load_config '.components.airflow.chart_repo' 'https://airfl
 AIRFLOW_CHART_NAME=$(load_config '.components.airflow.chart_name' 'airflow')
 AIRFLOW_CHART_VERSION=$(load_config '.components.airflow.chart_version' '1.18.0')
 
+# Component: Strimzi Kafka
+STRIMZI_ENABLED=$(load_config '.components.strimzi.enabled' 'false')
+STRIMZI_NAMESPACE=$(load_config '.components.strimzi.namespace' 'kafka')
+STRIMZI_CHART_REPO=$(load_config '.components.strimzi.chart_repo' 'https://strimzi.io/charts/')
+STRIMZI_CHART_NAME=$(load_config '.components.strimzi.chart_name' 'strimzi-kafka-operator')
+STRIMZI_CHART_VERSION=$(load_config '.components.strimzi.chart_version' '0.50.0')
+STRIMZI_KAFKA_VERSION=$(load_config '.components.strimzi.kafka_version' '4.1.1')
+STRIMZI_KAFKA_CLUSTER_NAME=$(load_config '.components.strimzi.kafka_cluster_name' 'events-kafka')
+
+# Component: Knative
+KNATIVE_ENABLED=$(load_config '.components.knative.enabled' 'false')
+KNATIVE_NAMESPACE=$(load_config '.components.knative.namespace' 'knative-operator')
+KNATIVE_SERVING_NAMESPACE=$(load_config '.components.knative.serving_namespace' 'knative-serving')
+KNATIVE_EVENTING_NAMESPACE=$(load_config '.components.knative.eventing_namespace' 'knative-eventing')
+KNATIVE_CHART_REPO=$(load_config '.components.knative.chart_repo' 'https://knative.github.io/operator')
+KNATIVE_CHART_NAME=$(load_config '.components.knative.chart_name' 'knative-operator')
+KNATIVE_CHART_VERSION=$(load_config '.components.knative.chart_version' 'v1.21.0')
+KNATIVE_VERSION=$(load_config '.components.knative.version' 'v1.21.0')
+
+# Component: Envoy Gateway
+ENVOY_GATEWAY_ENABLED=$(load_config '.components.envoy_gateway.enabled' 'false')
+ENVOY_GATEWAY_NAMESPACE=$(load_config '.components.envoy_gateway.namespace' 'envoy-gateway-system')
+ENVOY_GATEWAY_CHART_VERSION=$(load_config '.components.envoy_gateway.chart_version' 'v1.7.0')
+
+# Component: Istio
+ISTIO_ENABLED=$(load_config '.components.istio.enabled' 'false')
+ISTIO_NAMESPACE=$(load_config '.components.istio.namespace' 'istio-system')
+ISTIO_CHART_REPO=$(load_config '.components.istio.chart_repo' 'https://istio-release.storage.googleapis.com/charts')
+ISTIO_CHART_VERSION=$(load_config '.components.istio.chart_version' '1.28.3')
+
+# Component: PostgreSQL (CloudNativePG)
+POSTGRES_ENABLED=$(load_config '.components.postgres.enabled' 'false')
+POSTGRES_NAMESPACE=$(load_config '.components.postgres.namespace' 'postgres-operator')
+POSTGRES_CHART_REPO=$(load_config '.components.postgres.chart_repo' 'https://cloudnative-pg.github.io/charts')
+POSTGRES_CHART_NAME=$(load_config '.components.postgres.chart_name' 'cloudnative-pg')
+POSTGRES_CHART_VERSION=$(load_config '.components.postgres.chart_version' '0.27.1')
+
 # Export all variables
 export VM_CPUS VM_MEMORY VM_DISK_SIZE VM_BOX VM_NAME
 export RESERVED_CPUS RESERVED_MEMORY
@@ -116,4 +153,10 @@ export MINIKUBE_DRIVER MINIKUBE_NODES MINIKUBE_CPUS MINIKUBE_MEMORY MINIKUBE_DIS
 export CEPH_ENABLED CEPH_NAMESPACE CEPH_CHART_REPO CEPH_CHART_NAME CEPH_CHART_VERSION
 export DREMIO_ENABLED DREMIO_NAMESPACE DREMIO_CHART_OCI DREMIO_CHART_VERSION
 export AIRFLOW_ENABLED AIRFLOW_NAMESPACE AIRFLOW_CHART_REPO AIRFLOW_CHART_NAME AIRFLOW_CHART_VERSION
+export STRIMZI_ENABLED STRIMZI_NAMESPACE STRIMZI_CHART_REPO STRIMZI_CHART_NAME STRIMZI_CHART_VERSION STRIMZI_KAFKA_VERSION STRIMZI_KAFKA_CLUSTER_NAME
+export KNATIVE_ENABLED KNATIVE_NAMESPACE KNATIVE_SERVING_NAMESPACE KNATIVE_EVENTING_NAMESPACE KNATIVE_CHART_REPO KNATIVE_CHART_NAME KNATIVE_CHART_VERSION KNATIVE_VERSION
+export ENVOY_GATEWAY_ENABLED ENVOY_GATEWAY_NAMESPACE ENVOY_GATEWAY_CHART_VERSION
+export ISTIO_ENABLED ISTIO_NAMESPACE ISTIO_CHART_REPO ISTIO_CHART_VERSION
+export POSTGRES_ENABLED POSTGRES_NAMESPACE POSTGRES_CHART_REPO POSTGRES_CHART_NAME POSTGRES_CHART_VERSION
 export PROJECT_ROOT CONFIG_FILE
+

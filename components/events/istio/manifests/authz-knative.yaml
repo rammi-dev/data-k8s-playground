@@ -1,0 +1,38 @@
+# AuthorizationPolicy — allow Knative system components to reach services
+# Without this, scale-from-zero breaks (activator/autoscaler get denied)
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-knative-system
+  namespace: default
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["knative-serving"]
+    - from:
+        - source:
+            namespaces: ["knative-eventing"]
+    - from:
+        - source:
+            namespaces: ["istio-system"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-knative-system
+  namespace: eventing-demo
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["knative-serving"]
+    - from:
+        - source:
+            namespaces: ["knative-eventing"]
+    - from:
+        - source:
+            namespaces: ["istio-system"]

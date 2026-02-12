@@ -1,0 +1,17 @@
+# Envoy Gateway Playground Values
+# Configures Envoy Gateway via Helm dependency
+#
+# Deploy with:
+#   helm dependency update
+#   helm upgrade --install envoy-gateway . -n envoy-gateway-system --create-namespace
+#
+# See: https://gateway.envoyproxy.io/latest/install/install-helm/
+
+# ============================================
+# Envoy Gateway Configuration
+# ============================================
+gateway-helm:
+  # Gateway API CRDs are installed by the chart automatically
+  # Default resource allocation:
+  #   Controller: 100m CPU / 256Mi memory
+  #   Proxy: 150m CPU / 640Mi memory (per Gateway)

@@ -1,0 +1,12 @@
+# Knative Eventing Kafka Broker default configuration
+# Referenced by Kafka Broker resources via spec.config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-broker-config
+  namespace: knative-eventing
+data:
+  default.topic.partitions: "3"
+  default.topic.replication.factor: "1"
+  bootstrap.servers: "events-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"

@@ -1,0 +1,4 @@
+# Knative Overrides — environment-specific tweaks
+
+# knative-operator:
+#   # Override operator settings here

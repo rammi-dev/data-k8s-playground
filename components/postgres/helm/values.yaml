@@ -1,0 +1,29 @@
+# CloudNativePG Operator Configuration
+# Pass-through to upstream chart with minimal overrides
+# See: https://github.com/cloudnative-pg/charts
+
+cloudnative-pg:
+  # Operator configuration
+  replicaCount: 1
+  
+  # Image configuration (uses community images from ghcr.io)
+  image:
+    repository: ghcr.io/cloudnative-pg/cloudnative-pg
+    pullPolicy: IfNotPresent
+  
+  # Resource limits for operator
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  # Monitoring (Prometheus metrics)
+  monitoring:
+    podMonitorEnabled: false  # Enable if Prometheus is deployed
+  
+  # Webhook configuration
+  webhook:
+    port: 9443

@@ -1,0 +1,45 @@
+# CloudNativePG Test Cluster — Single-node PostgreSQL for development
+# Minimal configuration for testing the operator
+#
+# Connection after deploy:
+#   Service: test-cluster-rw.postgres-operator.svc.cluster.local:5432
+#   Database: app
+#   User: app
+#   Password: kubectl get secret test-cluster-app -n postgres-operator -o jsonpath='{.data.password}' | base64 -d
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: test-cluster
+spec:
+  # Single instance for development
+  instances: 1
+  
+  # PostgreSQL version (community image from ghcr.io)
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.2
+  
+  # Storage configuration (uses Ceph block storage)
+  storage:
+    storageClass: ceph-block
+    size: 5Gi
+  
+  # Resource limits
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  
+  # Bootstrap with app database and user
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+      secret:
+        name: test-cluster-app
+  
+  # Monitoring (Prometheus metrics)
+  monitoring:
+    enablePodMonitor: false  # Enable if Prometheus is deployed
