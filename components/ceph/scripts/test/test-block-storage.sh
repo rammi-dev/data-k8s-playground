@@ -11,6 +11,23 @@ source "$PROJECT_ROOT/scripts/common/utils.sh"
 NAMESPACE="default"
 PVC_NAME="test-rbd-pvc"
 POD_NAME="test-rbd-pod"
+TEST_PASSED=false
+
+cleanup() {
+    echo ""
+    print_info "Cleaning up test resources..."
+    kubectl delete pod "$POD_NAME" -n "$NAMESPACE" --ignore-not-found --wait=false 2>/dev/null
+    kubectl wait --for=delete pod/"$POD_NAME" -n "$NAMESPACE" --timeout=30s 2>/dev/null || true
+    kubectl delete pvc "$PVC_NAME" -n "$NAMESPACE" --ignore-not-found --wait=false 2>/dev/null
+    kubectl wait --for=delete pvc/"$PVC_NAME" -n "$NAMESPACE" --timeout=30s 2>/dev/null || true
+    if $TEST_PASSED; then
+        print_success "Cleanup complete"
+    else
+        print_error "Test FAILED - resources cleaned up"
+        exit 1
+    fi
+}
+trap cleanup EXIT
 
 print_info "Testing Ceph Block Storage (ceph-block StorageClass)"
 echo "=========================================="
@@ -99,6 +116,7 @@ PV_NAME=$(kubectl get pvc $PVC_NAME -n $NAMESPACE -o jsonpath='{.spec.volumeName
 echo ""
 kubectl get pv $PV_NAME
 
+TEST_PASSED=true
 print_success "Ceph Block Storage Test PASSED!"
 echo "=========================================="
 echo ""
@@ -108,9 +126,3 @@ echo "  ✓ PVC Created and Bound: $PVC_NAME"
 echo "  ✓ PV Provisioned: $PV_NAME"
 echo "  ✓ Pod Running: $POD_NAME"
 echo "  ✓ Data Written and Read Successfully"
-echo ""
-print_info "Cleanup:"
-echo "  kubectl delete pod $POD_NAME -n $NAMESPACE"
-echo "  kubectl delete pvc $PVC_NAME -n $NAMESPACE"
-echo ""
-print_warning "Note: Run cleanup commands manually or the PVC/PV will remain"
