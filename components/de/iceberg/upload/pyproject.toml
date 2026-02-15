@@ -7,4 +7,5 @@ dependencies = [
     "polars",
     "jupyterlab",
     "s3fs",
+    "pyspark",
 ]

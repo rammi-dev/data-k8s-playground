@@ -293,6 +293,117 @@ aws s3 cp myfile.txt s3://my-bucket/
 aws s3 ls s3://my-bucket/
 ```
 
+### Creating a Bucket with a Custom User
+
+When applications need S3 access with known credentials (not the admin user), the setup
+involves three CRDs and a bucket policy. Claude is too stupid to know this, so here's how
+it actually works ;)
+
+**The problem**: `ObjectBucketClaim` (OBC) and `CephObjectStoreUser` create separate RGW
+users. The OBC provisioner creates an internal user that **owns** the bucket. Your custom
+user (e.g. `minio`) is a completely different RGW identity. Even with `bucket: "*"`
+capability, the custom user gets **403 AccessDenied** because RGW enforces ownership ACLs
+— capabilities only govern what operations a user can perform on their *own* buckets, not
+grant cross-user access.
+
+**The fix**: apply an S3 bucket policy using the OBC owner's credentials to grant your
+custom user access.
+
+#### Step-by-step
+
+**1. Create the credentials secret** with known keys:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: iceberg-s3-keys
+  namespace: rook-ceph
+type: Opaque
+stringData:
+  access-key: minio
+  secret-key: minio123
+```
+
+**2. Create the CephObjectStoreUser** referencing those keys:
+
+```yaml
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStoreUser
+metadata:
+  name: minio
+  namespace: rook-ceph
+spec:
+  store: s3-store
+  displayName: "My App User"
+  capabilities:
+    bucket: "*"
+  keys:
+    - accessKeyRef:
+        name: iceberg-s3-keys
+        key: access-key
+      secretKeyRef:
+        name: iceberg-s3-keys
+        key: secret-key
+```
+
+The `spec.keys[]` field uses
+[ObjectUserKey](https://rook.io/docs/rook/latest/CRDs/specification/#ceph.rook.io/v1.ObjectUserKey)
+to import pre-existing credentials into RGW instead of auto-generating them. Note: the
+operator-generated secret (`rook-ceph-object-user-s3-store-minio`) will have **empty**
+`AccessKey`/`SecretKey` fields — this is expected when using `spec.keys`, the actual
+credentials live in the referenced secret.
+
+**3. Create the bucket** via OBC:
+
+```yaml
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: my-bucket
+  namespace: rook-ceph
+spec:
+  bucketName: my-bucket
+  storageClassName: ceph-bucket
+```
+
+The OBC creates:
+- The bucket in RGW (owned by the provisioner's internal user)
+- A `Secret` named `my-bucket` with the owner's `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`
+- A `ConfigMap` named `my-bucket` with `BUCKET_HOST`, `BUCKET_NAME`, `BUCKET_PORT`
+
+**4. Apply a bucket policy** granting your user access:
+
+```bash
+# Read OBC owner credentials
+OBC_AK=$(kubectl -n rook-ceph get secret my-bucket -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' | base64 -d)
+OBC_SK=$(kubectl -n rook-ceph get secret my-bucket -o jsonpath='{.data.AWS_SECRET_ACCESS_KEY}' | base64 -d)
+
+# Apply policy using owner credentials
+AWS_ACCESS_KEY_ID="$OBC_AK" AWS_SECRET_ACCESS_KEY="$OBC_SK" \
+  aws s3api put-bucket-policy \
+    --bucket my-bucket \
+    --endpoint-url http://localhost:7481 \
+    --policy '{
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Allow",
+        "Principal": {"AWS": ["arn:aws:iam:::user/minio"]},
+        "Action": "s3:*",
+        "Resource": [
+          "arn:aws:s3:::my-bucket",
+          "arn:aws:s3:::my-bucket/*"
+        ]
+      }]
+    }'
+```
+
+Now the `minio` user can read/write to the bucket using the known `minio`/`minio123` credentials.
+
+> **Note**: RGW requires path-style addressing when accessed via `localhost` port-forward.
+> Set `aws configure set default.s3.addressing_style path` or the AWS CLI will try
+> virtual-hosted style (`my-bucket.localhost`) which won't resolve.
+
 ---
 
 ## Testing

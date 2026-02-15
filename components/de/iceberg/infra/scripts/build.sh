@@ -23,7 +23,30 @@ USER_SECRET="rook-ceph-object-user-s3-store-minio"
 S3_ACCESS_KEY="minio"
 S3_SECRET_KEY="minio123"
 
+LOCAL_PORT=7481
+
 source "$PROJECT_ROOT/scripts/common/utils.sh"
+
+# Start a port-forward to RGW if not already running, set S3_OPTS for aws CLI
+ensure_port_forward() {
+    if ss -tlnp 2>/dev/null | grep -q ":$LOCAL_PORT "; then
+        print_info "  Port-forward already running on :$LOCAL_PORT"
+    else
+        kubectl -n "$NAMESPACE" port-forward svc/rook-ceph-rgw-s3-store "$LOCAL_PORT:80" &>/dev/null &
+        PF_PID=$!
+        sleep 2
+        if ! kill -0 $PF_PID 2>/dev/null; then
+            print_error "Port-forward failed"
+            exit 1
+        fi
+        print_success "  Port-forward started on :$LOCAL_PORT (PID $PF_PID)"
+    fi
+    S3_ENDPOINT="http://localhost:$LOCAL_PORT"
+    S3_OPTS="--endpoint-url $S3_ENDPOINT"
+    export AWS_DEFAULT_REGION="us-east-1"
+    # RGW requires path-style addressing (virtual-hosted won't work with localhost)
+    aws configure set default.s3.addressing_style path
+}
 
 print_info "Iceberg S3 Infrastructure Setup"
 echo "=========================================="
@@ -85,41 +108,62 @@ for i in {1..30}; do
 done
 
 # ============================================================================
-# STEP 3: Upload CSV files using operating user
+# STEP 3: Grant minio user access to OBC bucket via bucket policy
 # ============================================================================
-print_info "Step 3: Uploading CSV files to S3..."
+print_info "Step 3: Granting minio user access to bucket..."
 
-# Port-forward for WSL access to RGW
-LOCAL_PORT=7481
-kubectl -n "$NAMESPACE" port-forward svc/rook-ceph-rgw-s3-store "$LOCAL_PORT:80" &>/dev/null &
-PF_PID=$!
-sleep 2
+ensure_port_forward
 
-if ! kill -0 $PF_PID 2>/dev/null; then
-    print_error "Port-forward failed"
-    exit 1
-fi
+# Use OBC owner credentials to set bucket policy
+OBC_ACCESS_KEY=$(kubectl -n "$NAMESPACE" get secret "$OBC_NAME" -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' | base64 -d)
+OBC_SECRET_KEY=$(kubectl -n "$NAMESPACE" get secret "$OBC_NAME" -o jsonpath='{.data.AWS_SECRET_ACCESS_KEY}' | base64 -d)
+
+POLICY=$(cat <<POLICYEOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {"AWS": ["arn:aws:iam:::user/minio"]},
+      "Action": "s3:*",
+      "Resource": [
+        "arn:aws:s3:::${BUCKET_NAME}",
+        "arn:aws:s3:::${BUCKET_NAME}/*"
+      ]
+    }
+  ]
+}
+POLICYEOF
+)
+
+AWS_ACCESS_KEY_ID="$OBC_ACCESS_KEY" AWS_SECRET_ACCESS_KEY="$OBC_SECRET_KEY" \
+    aws s3api put-bucket-policy --bucket "$BUCKET_NAME" --policy "$POLICY" $S3_OPTS
+print_success "  Bucket policy applied"
+
+# ============================================================================
+# STEP 4: Upload source files (csv + zip) using minio user
+# ============================================================================
+print_info "Step 4: Uploading source files to S3..."
 
 export AWS_ACCESS_KEY_ID="$S3_ACCESS_KEY"
 export AWS_SECRET_ACCESS_KEY="$S3_SECRET_KEY"
-export AWS_ENDPOINT_URL="http://localhost:$LOCAL_PORT"
-export AWS_DEFAULT_REGION="us-east-1"
 
-CSV_DIR="$UPLOAD_DIR/csv"
-for csv_file in "$CSV_DIR"/*.csv; do
+SOURCE_DIR="$UPLOAD_DIR/source"
+
+for csv_file in "$SOURCE_DIR/csv"/*.csv; do
     filename=$(basename "$csv_file")
-    aws s3 cp "$csv_file" "s3://$BUCKET_NAME/csv/$filename"
-    print_success "  Uploaded: $filename"
+    aws s3 cp "$csv_file" "s3://$BUCKET_NAME/source/csv/$filename" $S3_OPTS
+    print_success "  Uploaded: csv/$filename"
 done
 
-print_info "  Verifying uploads..."
-aws s3 ls "s3://$BUCKET_NAME/csv/"
+aws s3 cp "$SOURCE_DIR/zip/" "s3://$BUCKET_NAME/source/zip/" --recursive --include "*.zip" $S3_OPTS
+print_success "  Uploaded: zip/"
 
-# Kill temporary port-forward
-kill $PF_PID 2>/dev/null || true
+print_info "  Verifying uploads..."
+aws s3 ls "s3://$BUCKET_NAME/source/" --recursive $S3_OPTS
 
 # ============================================================================
-# DONE
+# DONE — port-forward left running for subsequent use
 # ============================================================================
 print_success "Iceberg S3 Infrastructure Ready!"
 echo "=========================================="
@@ -127,17 +171,19 @@ echo ""
 print_info "Bucket:       $BUCKET_NAME"
 print_info "Access Key:   $S3_ACCESS_KEY"
 print_info "Secret Key:   $S3_SECRET_KEY"
+print_info "S3 Endpoint:  http://localhost:$LOCAL_PORT (port-forward running)"
 echo ""
-print_info "Run ingestion (handles port-forward automatically):"
+print_info "Run ingestion:"
 echo "  cd $UPLOAD_DIR && ./scripts/ingest.sh"
 echo ""
 print_info "Or run manually:"
-echo "  kubectl -n $NAMESPACE port-forward svc/rook-ceph-rgw-s3-store 7481:80 &"
-echo "  export S3_ENDPOINT=http://localhost:7481"
-echo "  export S3_BUCKET=$BUCKET_NAME"
 echo "  export AWS_ACCESS_KEY_ID=$S3_ACCESS_KEY"
 echo "  export AWS_SECRET_ACCESS_KEY=$S3_SECRET_KEY"
+echo "  export AWS_DEFAULT_REGION=us-east-1"
 echo "  cd $UPLOAD_DIR && uv sync && .venv/bin/python ingest.py"
+echo ""
+print_info "Stop port-forward:"
+echo "  pkill -f 'port-forward.*$LOCAL_PORT'"
 echo ""
 print_info "Destroy:"
 echo "  $INFRA_DIR/scripts/destroy.sh"

@@ -24,7 +24,7 @@ from pyiceberg.types import (
 )
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
-CSV_DIR = SCRIPT_DIR / "csv"
+CSV_DIR = SCRIPT_DIR / "source" / "csv"
 
 NAMESPACE = "default"
 TABLE_NAME = "employees"
@@ -94,9 +94,9 @@ def read_csvs_from_s3(s3_config: dict) -> list[pl.DataFrame]:
     )
 
     bucket = s3_config["bucket"]
-    csv_files = sorted(fs.glob(f"{bucket}/csv/*.csv"))
+    csv_files = sorted(fs.glob(f"{bucket}/source/csv/*.csv"))
     if not csv_files:
-        print(f"No CSV files found in s3://{bucket}/csv/")
+        print(f"No CSV files found in s3://{bucket}/source/csv/")
         return []
 
     frames = []
