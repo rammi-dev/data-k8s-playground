@@ -1,0 +1,12 @@
+# ObjectBucketClaim — Rook operator creates the bucket in RGW
+# Creates Secret + ConfigMap named "iceberg-upload" in same namespace
+#   Secret:    AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY (auto-generated)
+#   ConfigMap: BUCKET_HOST, BUCKET_PORT, BUCKET_NAME, BUCKET_REGION
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: iceberg-upload
+  namespace: rook-ceph
+spec:
+  generateBucketName: iceberg-upload
+  storageClassName: ceph-bucket

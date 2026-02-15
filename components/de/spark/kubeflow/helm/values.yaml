@@ -1,0 +1,21 @@
+# Kubeflow Spark Operator - Playground Values
+# Deploys the operator that manages SparkApplication CRDs on Kubernetes
+#
+# Deploy with:
+#   helm dependency update
+#   helm upgrade --install spark-kubeflow . -n spark-kubeflow --create-namespace
+
+spark-operator:
+  controller:
+    workers: 10
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+  webhook:
+    enable: true

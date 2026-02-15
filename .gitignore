@@ -43,5 +43,10 @@ secrets/
 components/*/helm/charts/
 components/*/helm/*.tgz
 
+# Iceberg table output (generated data)
+components/de/iceberg/upload/output/
+# Python virtual environments
+components/de/iceberg/upload/.venv/
+
 # Minikube (if any local state)
 .minikube/

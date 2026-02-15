@@ -117,3 +117,18 @@ components:
     chart_name: "cloudnative-pg"
     chart_version: "0.27.1"
 
+  # Data Engineering: Spark operators (deploy one or both)
+  spark_apache:
+    enabled: true
+    namespace: "spark-apache"
+    chart_repo: "https://apache.github.io/spark-kubernetes-operator"
+    chart_name: "spark-kubernetes-operator"
+    chart_version: "1.5.0"
+
+  spark_kubeflow:
+    enabled: true
+    namespace: "spark-kubeflow"
+    chart_repo: "https://kubeflow.github.io/spark-operator"
+    chart_name: "spark-operator"
+    chart_version: "2.4.0"
+

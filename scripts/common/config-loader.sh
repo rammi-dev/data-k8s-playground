@@ -145,6 +145,20 @@ POSTGRES_CHART_REPO=$(load_config '.components.postgres.chart_repo' 'https://clo
 POSTGRES_CHART_NAME=$(load_config '.components.postgres.chart_name' 'cloudnative-pg')
 POSTGRES_CHART_VERSION=$(load_config '.components.postgres.chart_version' '0.27.1')
 
+# Component: Spark Apache Operator
+SPARK_APACHE_ENABLED=$(load_config '.components.spark_apache.enabled' 'false')
+SPARK_APACHE_NAMESPACE=$(load_config '.components.spark_apache.namespace' 'spark-apache')
+SPARK_APACHE_CHART_REPO=$(load_config '.components.spark_apache.chart_repo' 'https://apache.github.io/spark-kubernetes-operator')
+SPARK_APACHE_CHART_NAME=$(load_config '.components.spark_apache.chart_name' 'spark-kubernetes-operator')
+SPARK_APACHE_CHART_VERSION=$(load_config '.components.spark_apache.chart_version' '1.5.0')
+
+# Component: Spark Kubeflow Operator
+SPARK_KUBEFLOW_ENABLED=$(load_config '.components.spark_kubeflow.enabled' 'false')
+SPARK_KUBEFLOW_NAMESPACE=$(load_config '.components.spark_kubeflow.namespace' 'spark-kubeflow')
+SPARK_KUBEFLOW_CHART_REPO=$(load_config '.components.spark_kubeflow.chart_repo' 'https://kubeflow.github.io/spark-operator')
+SPARK_KUBEFLOW_CHART_NAME=$(load_config '.components.spark_kubeflow.chart_name' 'spark-operator')
+SPARK_KUBEFLOW_CHART_VERSION=$(load_config '.components.spark_kubeflow.chart_version' '2.4.0')
+
 # Export all variables
 export VM_CPUS VM_MEMORY VM_DISK_SIZE VM_BOX VM_NAME
 export RESERVED_CPUS RESERVED_MEMORY
@@ -158,5 +172,7 @@ export KNATIVE_ENABLED KNATIVE_NAMESPACE KNATIVE_SERVING_NAMESPACE KNATIVE_EVENT
 export ENVOY_GATEWAY_ENABLED ENVOY_GATEWAY_NAMESPACE ENVOY_GATEWAY_CHART_VERSION
 export ISTIO_ENABLED ISTIO_NAMESPACE ISTIO_CHART_REPO ISTIO_CHART_VERSION
 export POSTGRES_ENABLED POSTGRES_NAMESPACE POSTGRES_CHART_REPO POSTGRES_CHART_NAME POSTGRES_CHART_VERSION
+export SPARK_APACHE_ENABLED SPARK_APACHE_NAMESPACE SPARK_APACHE_CHART_REPO SPARK_APACHE_CHART_NAME SPARK_APACHE_CHART_VERSION
+export SPARK_KUBEFLOW_ENABLED SPARK_KUBEFLOW_NAMESPACE SPARK_KUBEFLOW_CHART_REPO SPARK_KUBEFLOW_CHART_NAME SPARK_KUBEFLOW_CHART_VERSION
 export PROJECT_ROOT CONFIG_FILE
 

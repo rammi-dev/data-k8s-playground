@@ -1,0 +1,30 @@
+# S3 credentials secret (referenced by CephObjectStoreUser below)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: iceberg-s3-keys
+  namespace: rook-ceph
+type: Opaque
+stringData:
+  access-key: minio
+  secret-key: minio123
+---
+# S3 operating user for Iceberg ingestion
+# Operator creates: rook-ceph-object-user-s3-store-minio (AccessKey, SecretKey)
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStoreUser
+metadata:
+  name: minio
+  namespace: rook-ceph
+spec:
+  store: s3-store
+  displayName: "Iceberg Upload"
+  capabilities:
+    bucket: "*"
+  keys:
+    - accessKeyRef:
+        name: iceberg-s3-keys
+        key: access-key
+      secretKeyRef:
+        name: iceberg-s3-keys
+        key: secret-key

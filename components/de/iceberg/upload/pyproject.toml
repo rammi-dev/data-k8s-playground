@@ -1,0 +1,10 @@
+[project]
+name = "iceberg-upload"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "pyiceberg[pyarrow,sql-sqlite,s3]",
+    "polars",
+    "jupyterlab",
+    "s3fs",
+]

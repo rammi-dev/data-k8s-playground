@@ -1,0 +1,23 @@
+# Apache Spark Kubernetes Operator - Playground Values
+# Deploys the operator that manages SparkApplication CRDs on Kubernetes
+#
+# Deploy with:
+#   helm dependency update
+#   helm upgrade --install spark-apache . -n spark-apache --create-namespace
+
+spark-kubernetes-operator:
+  replicas: 1
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+  webhook:
+    enabled: true
+
+  metrics:
+    enabled: true
