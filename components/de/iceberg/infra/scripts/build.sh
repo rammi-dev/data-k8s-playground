@@ -18,6 +18,7 @@ UPLOAD_DIR="$PROJECT_ROOT/components/de/iceberg/upload"
 NAMESPACE="rook-ceph"
 
 OBC_NAME="iceberg-upload"
+BUCKET_NAME="iceberg-upload"
 USER_SECRET="rook-ceph-object-user-s3-store-minio"
 S3_ACCESS_KEY="minio"
 S3_SECRET_KEY="minio123"
@@ -52,14 +53,25 @@ for i in {1..60}; do
     sleep 1
 done
 
-# Read bucket name from OBC ConfigMap
-BUCKET_NAME=$(kubectl -n "$NAMESPACE" get cm "$OBC_NAME" -o jsonpath='{.data.BUCKET_NAME}')
 print_success "  Bucket: $BUCKET_NAME"
 
 # ============================================================================
 # STEP 2: Create S3 operating user (keys from Secret)
 # ============================================================================
 print_info "Step 2: Creating S3 operating user..."
+
+# If user is stuck in ReconcileFailed (missing keys secret), fix it first
+USER_PHASE=$(kubectl -n "$NAMESPACE" get cephobjectstoreuser minio -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
+if [[ "$USER_PHASE" == "ReconcileFailed" ]]; then
+    print_info "  User stuck in ReconcileFailed, cleaning up..."
+    kubectl apply -f "$INFRA_DIR/manifests/s3-user.yaml"
+    sleep 5
+    kubectl delete cephobjectstoreuser minio -n "$NAMESPACE" --ignore-not-found
+    kubectl wait --for=delete cephobjectstoreuser/minio -n "$NAMESPACE" --timeout=30s 2>/dev/null || true
+    kubectl delete secret iceberg-s3-keys -n "$NAMESPACE" --ignore-not-found
+    print_success "  Cleaned up stuck user"
+fi
+
 kubectl apply -f "$INFRA_DIR/manifests/s3-user.yaml"
 
 print_info "  Waiting for user secret..."

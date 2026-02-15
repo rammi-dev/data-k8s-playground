@@ -16,6 +16,7 @@ fi
 COMPONENT_DIR="$PROJECT_ROOT/components/de/iceberg/upload"
 NAMESPACE="rook-ceph"
 OBC_NAME="iceberg-upload"
+BUCKET_NAME="iceberg-upload"
 LOCAL_PORT=7481
 
 S3_ACCESS_KEY="minio"
@@ -56,8 +57,6 @@ trap cleanup EXIT
 
 if [[ -z "${S3_ENDPOINT:-}" ]] && kubectl -n "$NAMESPACE" get obc "$OBC_NAME" -o jsonpath='{.status.phase}' 2>/dev/null | grep -q "Bound"; then
     print_info "Detected OBC '$OBC_NAME' — configuring S3 mode..."
-
-    BUCKET_NAME=$(kubectl -n "$NAMESPACE" get cm "$OBC_NAME" -o jsonpath='{.data.BUCKET_NAME}')
 
     # Start port-forward if not already running on LOCAL_PORT
     if ! ss -tlnp 2>/dev/null | grep -q ":$LOCAL_PORT "; then

@@ -46,7 +46,7 @@ Then run ingestion — the wrapper script auto-detects the RGW service and start
 # Option 2: manually (start port-forward yourself)
 kubectl -n rook-ceph port-forward svc/rook-ceph-rgw-s3-store 7481:80 &
 export S3_ENDPOINT=http://localhost:7481
-export S3_BUCKET=$(kubectl -n rook-ceph get cm iceberg-upload -o jsonpath='{.data.BUCKET_NAME}')
+export S3_BUCKET=iceberg-upload
 export AWS_ACCESS_KEY_ID=minio
 export AWS_SECRET_ACCESS_KEY=minio123
 
@@ -68,7 +68,7 @@ To tear down the S3 infrastructure:
    ```
 2. Open http://localhost:7000 in your browser
 3. Login with user `admin` and password from the script output
-4. Navigate to **Object Gateway > Buckets** to see the `iceberg-upload-*` bucket
+4. Navigate to **Object Gateway > Buckets** to see the `iceberg-upload` bucket
 5. Click the bucket to view objects under `csv/` and `warehouse/` prefixes
 
 You can also browse via AWS CLI. The RGW service runs inside K8s, so you need a port-forward first:
@@ -80,11 +80,9 @@ kubectl -n rook-ceph port-forward svc/rook-ceph-rgw-s3-store 7480:80 &
 export AWS_ENDPOINT_URL=http://localhost:7480
 export AWS_ACCESS_KEY_ID=minio
 export AWS_SECRET_ACCESS_KEY=minio123
-BUCKET=$(kubectl -n rook-ceph get cm iceberg-upload -o jsonpath='{.data.BUCKET_NAME}')
-
-aws s3 ls s3://$BUCKET/
-aws s3 ls s3://$BUCKET/csv/
-aws s3 ls s3://$BUCKET/warehouse/ --recursive
+aws s3 ls s3://iceberg-upload/
+aws s3 ls s3://iceberg-upload/csv/
+aws s3 ls s3://iceberg-upload/warehouse/ --recursive
 ```
 
 > **Note:** `dashboard.sh` already port-forwards RGW on port 7480. If it's running, skip the `kubectl port-forward` step.

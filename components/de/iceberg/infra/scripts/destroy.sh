@@ -12,7 +12,6 @@ else
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
 fi
 
-INFRA_DIR="$PROJECT_ROOT/components/de/iceberg/infra"
 NAMESPACE="rook-ceph"
 OBC_NAME="iceberg-upload"
 
@@ -24,12 +23,18 @@ echo "=========================================="
 # Delete ObjectBucketClaim (operator removes bucket + OBC secret + configmap)
 print_info "Deleting ObjectBucketClaim..."
 kubectl delete obc "$OBC_NAME" -n "$NAMESPACE" --ignore-not-found
-
 print_info "Waiting for OBC cleanup..."
 kubectl wait --for=delete obc/"$OBC_NAME" -n "$NAMESPACE" --timeout=30s 2>/dev/null || true
 
-# Delete S3 operating user (operator removes its secret)
+# Delete S3 operating user BEFORE its keys secret
+# (operator needs the secret to reconcile deletion — rook issue #16007)
 print_info "Deleting S3 operating user..."
-kubectl delete -f "$INFRA_DIR/manifests/s3-user.yaml" --ignore-not-found
+kubectl delete cephobjectstoreuser minio -n "$NAMESPACE" --ignore-not-found
+print_info "Waiting for user cleanup..."
+kubectl wait --for=delete cephobjectstoreuser/minio -n "$NAMESPACE" --timeout=30s 2>/dev/null || true
+
+# Now safe to delete the keys secret
+print_info "Deleting credentials secret..."
+kubectl delete secret iceberg-s3-keys -n "$NAMESPACE" --ignore-not-found
 
 print_success "Iceberg S3 Infrastructure Removed!"
