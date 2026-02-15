@@ -24,6 +24,7 @@ import os
 import sys
 
 from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
 
 DEFAULTS = {
     "S3_ENDPOINT": "http://localhost:7481",
@@ -121,9 +122,14 @@ def main():
     print(f"Table:     {TABLE_NAME}")
     print()
 
-    # Read all parquet files with schema merge
+    # Read all parquet files with schema merge, add source filename column
     print("Reading parquet files...")
-    df = spark.read.option("mergeSchema", "true").parquet(*parquet_paths)
+    df = (
+        spark.read
+        .option("mergeSchema", "true")
+        .parquet(*parquet_paths)
+        .withColumn("source", F.input_file_name())
+    )
 
     row_count = df.count()
     print(f"  Rows: {row_count}")
