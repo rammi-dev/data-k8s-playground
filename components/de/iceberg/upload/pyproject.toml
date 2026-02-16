@@ -8,4 +8,5 @@ dependencies = [
     "jupyterlab",
     "s3fs",
     "pyspark",
+    "python-dotenv",
 ]
