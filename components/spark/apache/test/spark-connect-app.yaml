@@ -1,0 +1,53 @@
+# Spark Connect via SparkApplication (K8s-native driver/executor mode)
+# Always-on: driver only. Executors scale dynamically (min 0, max 3).
+#
+# Deploy:  kubectl apply -f spark-connect-app.yaml
+# Connect: spark-connect-server-svc.spark-workload:15002
+# Web UI:  spark-connect-server-svc.spark-workload:4040
+# Delete:  kubectl delete -f spark-connect-app.yaml
+apiVersion: spark.apache.org/v1
+kind: SparkApplication
+metadata:
+  name: spark-connect-server
+  namespace: spark-workload
+spec:
+  mainClass: org.apache.spark.sql.connect.service.SparkConnectServer
+
+  runtimeVersions:
+    sparkVersion: "4.1.1"
+
+  sparkConf:
+    # Dynamic allocation — executors scale to zero when idle
+    spark.dynamicAllocation.enabled: "true"
+    spark.dynamicAllocation.shuffleTracking.enabled: "true"
+    spark.dynamicAllocation.minExecutors: "0"
+    spark.dynamicAllocation.maxExecutors: "3"
+    spark.dynamicAllocation.executorIdleTimeout: "60s"
+    # K8s pod identity
+    spark.kubernetes.authenticate.driver.serviceAccountName: spark
+    spark.kubernetes.container.image: apache/spark:4.1.1
+    spark.kubernetes.executor.podNamePrefix: spark-connect-server
+    # Fair scheduling for concurrent sessions
+    spark.scheduler.mode: FAIR
+
+  applicationTolerations:
+    resourceRetainPolicy: Always
+    restartConfig:
+      restartPolicy: OnFailure
+      maxRestartAttempts: 3
+
+  driverSpec:
+    podTemplateSpec:
+      spec:
+        serviceAccountName: spark
+
+  driverServiceIngressList:
+    - serviceSpec:
+        type: ClusterIP
+        ports:
+          - name: spark-connect
+            port: 15002
+            targetPort: 15002
+          - name: web-ui
+            port: 4040
+            targetPort: 4040

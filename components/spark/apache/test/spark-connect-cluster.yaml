@@ -1,0 +1,43 @@
+# Spark Connect via SparkCluster (standalone master/worker mode)
+# Always-on: master + workers. Workers scale via HPA.
+#
+# Deploy:  kubectl apply -f spark-connect-cluster.yaml
+# Connect: spark-connect-master-svc.spark-workload:15002
+# Web UI:  spark-connect-master-svc.spark-workload:8080
+# Delete:  kubectl delete -f spark-connect-cluster.yaml
+apiVersion: spark.apache.org/v1
+kind: SparkCluster
+metadata:
+  name: spark-connect
+  namespace: spark-workload
+spec:
+  runtimeVersions:
+    sparkVersion: "4.1.1"
+
+  clusterTolerations:
+    instanceConfig:
+      initWorkers: 1
+      minWorkers: 1
+      maxWorkers: 3
+
+  sparkConf:
+    spark.plugins: org.apache.spark.sql.connect.SparkConnectPlugin
+
+  masterSpec:
+    serviceSpec:
+      type: ClusterIP
+      ports:
+        - name: spark-connect
+          port: 15002
+          targetPort: 15002
+    statefulSetSpec:
+      replicas: 1
+      template:
+        spec:
+          serviceAccountName: spark
+
+  workerSpec:
+    statefulSetSpec:
+      template:
+        spec:
+          serviceAccountName: spark
