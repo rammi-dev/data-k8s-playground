@@ -3,7 +3,7 @@ name: istio-playground
 description: Istio service mesh for the event-driven playground (Phase 3)
 type: application
 version: 1.0.0
-appVersion: "1.28.3"
+appVersion: "1.29.0"
 
 # Dependencies on official Istio Helm charts
 # Install order: base (CRDs) + istiod (control plane)
@@ -11,8 +11,8 @@ appVersion: "1.28.3"
 # See: https://istio.io/latest/docs/setup/install/helm/
 dependencies:
   - name: base
-    version: "1.28.3"
+    version: "1.29.0"
     repository: "https://istio-release.storage.googleapis.com/charts"
   - name: istiod
-    version: "1.28.3"
+    version: "1.29.0"
     repository: "https://istio-release.storage.googleapis.com/charts"

@@ -117,6 +117,14 @@ STRIMZI_CHART_VERSION=$(load_config '.components.strimzi.chart_version' '0.50.0'
 STRIMZI_KAFKA_VERSION=$(load_config '.components.strimzi.kafka_version' '4.1.1')
 STRIMZI_KAFKA_CLUSTER_NAME=$(load_config '.components.strimzi.kafka_cluster_name' 'events-kafka')
 
+# Component: Apicurio Registry (Schema Registry)
+APICURIO_ENABLED=$(load_config '.components.apicurio.enabled' 'false')
+APICURIO_NAMESPACE=$(load_config '.components.apicurio.namespace' 'kafka')
+APICURIO_IMAGE=$(load_config '.components.apicurio.image' 'docker.io/apicurio/apicurio-registry')
+APICURIO_VERSION=$(load_config '.components.apicurio.version' '3.1.7')
+APICURIO_STORAGE=$(load_config '.components.apicurio.storage' 'kafkasql')
+APICURIO_REPLICAS=$(load_config '.components.apicurio.replicas' '1')
+
 # Component: Knative
 KNATIVE_ENABLED=$(load_config '.components.knative.enabled' 'false')
 KNATIVE_NAMESPACE=$(load_config '.components.knative.namespace' 'knative-operator')
@@ -159,6 +167,15 @@ SPARK_KUBEFLOW_CHART_REPO=$(load_config '.components.spark_kubeflow.chart_repo' 
 SPARK_KUBEFLOW_CHART_NAME=$(load_config '.components.spark_kubeflow.chart_name' 'spark-operator')
 SPARK_KUBEFLOW_CHART_VERSION=$(load_config '.components.spark_kubeflow.chart_version' '2.4.0')
 
+# Component: Milvus (Vector Database)
+MILVUS_ENABLED=$(load_config '.components.milvus.enabled' 'false')
+MILVUS_NAMESPACE=$(load_config '.components.milvus.namespace' 'milvus')
+MILVUS_CHART_REPO=$(load_config '.components.milvus.chart_repo' 'https://zilliztech.github.io/milvus-helm/')
+MILVUS_CHART_NAME=$(load_config '.components.milvus.chart_name' 'milvus')
+MILVUS_CHART_VERSION=$(load_config '.components.milvus.chart_version' '4.0.31')
+MILVUS_VERSION=$(load_config '.components.milvus.milvus_version' 'v2.6.8')
+MILVUS_MODE=$(load_config '.components.milvus.mode' 'standalone')
+
 # Export all variables
 export VM_CPUS VM_MEMORY VM_DISK_SIZE VM_BOX VM_NAME
 export RESERVED_CPUS RESERVED_MEMORY
@@ -168,11 +185,13 @@ export CEPH_ENABLED CEPH_NAMESPACE CEPH_CHART_REPO CEPH_CHART_NAME CEPH_CHART_VE
 export DREMIO_ENABLED DREMIO_NAMESPACE DREMIO_CHART_OCI DREMIO_CHART_VERSION
 export AIRFLOW_ENABLED AIRFLOW_NAMESPACE AIRFLOW_CHART_REPO AIRFLOW_CHART_NAME AIRFLOW_CHART_VERSION
 export STRIMZI_ENABLED STRIMZI_NAMESPACE STRIMZI_CHART_REPO STRIMZI_CHART_NAME STRIMZI_CHART_VERSION STRIMZI_KAFKA_VERSION STRIMZI_KAFKA_CLUSTER_NAME
+export APICURIO_ENABLED APICURIO_NAMESPACE APICURIO_IMAGE APICURIO_VERSION APICURIO_STORAGE APICURIO_REPLICAS
 export KNATIVE_ENABLED KNATIVE_NAMESPACE KNATIVE_SERVING_NAMESPACE KNATIVE_EVENTING_NAMESPACE KNATIVE_CHART_REPO KNATIVE_CHART_NAME KNATIVE_CHART_VERSION KNATIVE_VERSION
 export ENVOY_GATEWAY_ENABLED ENVOY_GATEWAY_NAMESPACE ENVOY_GATEWAY_CHART_VERSION
 export ISTIO_ENABLED ISTIO_NAMESPACE ISTIO_CHART_REPO ISTIO_CHART_VERSION
 export POSTGRES_ENABLED POSTGRES_NAMESPACE POSTGRES_CHART_REPO POSTGRES_CHART_NAME POSTGRES_CHART_VERSION
 export SPARK_APACHE_ENABLED SPARK_APACHE_NAMESPACE SPARK_APACHE_CHART_REPO SPARK_APACHE_CHART_NAME SPARK_APACHE_CHART_VERSION
 export SPARK_KUBEFLOW_ENABLED SPARK_KUBEFLOW_NAMESPACE SPARK_KUBEFLOW_CHART_REPO SPARK_KUBEFLOW_CHART_NAME SPARK_KUBEFLOW_CHART_VERSION
+export MILVUS_ENABLED MILVUS_NAMESPACE MILVUS_CHART_REPO MILVUS_CHART_NAME MILVUS_CHART_VERSION MILVUS_VERSION MILVUS_MODE
 export PROJECT_ROOT CONFIG_FILE
 

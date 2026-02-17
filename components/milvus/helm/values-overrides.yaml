@@ -1,0 +1,44 @@
+# Milvus Overrides — environment-specific tweaks
+# Layered on top of values.yaml during helm install
+#
+# Usage in build.sh:
+#   helm upgrade --install milvus . -f values.yaml -f values-overrides.yaml
+#
+# This override:
+#   - Enables cluster mode (separate proxy, queryNode, dataNode, indexNode)
+#   - Replaces bundled MinIO with Ceph RGW (S3-compatible)
+#   - Credentials injected by build.sh via --set from CephObjectStoreUser secret
+
+milvus:
+  # Cluster mode — separate pods per component
+  cluster:
+    enabled: true
+
+  # Disable bundled MinIO — use Ceph RGW instead
+  minio:
+    enabled: false
+
+  # Ceph RGW as S3 backend
+  # accessKey/secretKey are injected by build.sh via --set at install time
+  externalS3:
+    enabled: true
+    host: rook-ceph-rgw-s3-store.rook-ceph.svc
+    port: "80"
+    useSSL: false
+    bucketName: milvus
+    rootPath: file
+    useIAM: false
+    cloudProvider: "aws"
+
+  # Cluster component replicas (minimal for playground)
+  proxy:
+    replicas: 1
+
+  queryNode:
+    replicas: 1
+
+  dataNode:
+    replicas: 1
+
+  indexNode:
+    replicas: 1

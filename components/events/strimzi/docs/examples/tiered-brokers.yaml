@@ -1,0 +1,172 @@
+# Tiered Kafka Cluster — two broker profiles with topic placement
+#
+# Layout:
+#   controllers    (3 replicas) — KRaft quorum only, no data
+#   hot-brokers    (3 replicas) — SSD, high memory, broker IDs 0-2
+#   cold-brokers   (3 replicas) — HDD, low memory, broker IDs 3-5
+#
+# Topic placement:
+#   orders         → hot-brokers  (IDs 0,1,2) — low latency
+#   audit-logs     → cold-brokers (IDs 3,4,5) — high volume, cheap storage
+#
+# BROKER ID ASSIGNMENT:
+#   Each pool uses spec.nodeIds to explicitly set broker IDs.
+#   Without nodeIds, Strimzi assigns IDs implicitly based on pool creation
+#   order — which is fragile and shifts if you reorder/recreate pools.
+#   Always use nodeIds when topics reference specific broker IDs.
+
+---
+# ============================================================
+# Kafka Cluster
+# ============================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
+metadata:
+  name: events-kafka
+  annotations:
+    strimzi.io/node-pools: enabled
+    strimzi.io/kraft: enabled
+spec:
+  kafka:
+    version: 4.1.1
+    metadataVersion: "4.1-IV1"
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+    config:
+      default.replication.factor: 3
+      min.insync.replicas: 2
+      num.partitions: 3
+      log.retention.hours: 168
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}
+
+---
+# ============================================================
+# Pool 1: Controllers (KRaft quorum — no broker IDs)
+# ============================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaNodePool
+metadata:
+  name: controllers
+  labels:
+    strimzi.io/cluster: events-kafka
+spec:
+  replicas: 3
+  roles:
+    - controller
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 5Gi
+        class: rook-ceph-block
+        deleteClaim: false
+  resources:
+    requests: {memory: 512Mi, cpu: 250m}
+    limits:   {memory: 1Gi,   cpu: 500m}
+
+---
+# ============================================================
+# Pool 2: Hot Brokers — SSD, high memory (broker IDs 0, 1, 2)
+# ============================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaNodePool
+metadata:
+  name: hot-brokers
+  labels:
+    strimzi.io/cluster: events-kafka
+spec:
+  replicas: 3
+  nodeIds: [0, 1, 2]
+  roles:
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 50Gi
+        class: rook-ceph-block-ssd      # fast StorageClass
+        deleteClaim: false
+  resources:
+    requests: {memory: 4Gi,  cpu: 2000m}
+    limits:   {memory: 8Gi,  cpu: 4000m}
+
+---
+# ============================================================
+# Pool 3: Cold Brokers — HDD, low memory (broker IDs 3, 4, 5)
+# ============================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaNodePool
+metadata:
+  name: cold-brokers
+  labels:
+    strimzi.io/cluster: events-kafka
+spec:
+  replicas: 3
+  nodeIds: [3, 4, 5]
+  roles:
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 500Gi
+        class: rook-ceph-block-hdd      # cheap StorageClass
+        deleteClaim: false
+  resources:
+    requests: {memory: 2Gi,  cpu: 500m}
+    limits:   {memory: 4Gi,  cpu: 1000m}
+
+---
+# ============================================================
+# Topic: orders → pinned to hot-brokers (IDs 0, 1, 2)
+# ============================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: orders
+  labels:
+    strimzi.io/cluster: events-kafka
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    retention.ms: "604800000"           # 7 days
+    cleanup.policy: delete
+  # Pin each partition's 3 replicas to hot-brokers only
+  replicasAssignments:
+    - [0, 1, 2]                         # partition 0 → brokers 0, 1, 2
+    - [1, 2, 0]                         # partition 1 → brokers 1, 2, 0
+    - [2, 0, 1]                         # partition 2 → brokers 2, 0, 1
+
+---
+# ============================================================
+# Topic: audit-logs → pinned to cold-brokers (IDs 3, 4, 5)
+# ============================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: audit-logs
+  labels:
+    strimzi.io/cluster: events-kafka
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    retention.ms: "2592000000"          # 30 days
+    cleanup.policy: delete
+  # Pin each partition's 3 replicas to cold-brokers only
+  replicasAssignments:
+    - [3, 4, 5]                         # partition 0 → brokers 3, 4, 5
+    - [4, 5, 3]                         # partition 1 → brokers 4, 5, 3
+    - [5, 3, 4]                         # partition 2 → brokers 5, 3, 4

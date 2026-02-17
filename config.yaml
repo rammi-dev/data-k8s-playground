@@ -89,6 +89,14 @@ components:
     kafka_version: "4.1.1"
     kafka_cluster_name: "events-kafka"
 
+  apicurio:
+    enabled: true
+    namespace: "kafka"                          # co-located with Strimzi in same namespace
+    image: "docker.io/apicurio/apicurio-registry"
+    version: "3.1.7"
+    storage: "mem"                              # kafkasql | postgresql | mem
+    replicas: 1
+
   knative:
     enabled: true
     namespace: "knative-operator"
@@ -108,7 +116,7 @@ components:
     enabled: false               # Phase 3 (enable when ready, disable envoy_gateway)
     namespace: "istio-system"
     chart_repo: "https://istio-release.storage.googleapis.com/charts"
-    chart_version: "1.28.3"
+    chart_version: "1.29.0"
 
   postgres:
     enabled: true
@@ -131,4 +139,14 @@ components:
     chart_repo: "https://kubeflow.github.io/spark-operator"
     chart_name: "spark-operator"
     chart_version: "2.4.0"
+
+  # Vector Database
+  milvus:
+    enabled: true
+    namespace: "milvus"
+    chart_repo: "https://zilliztech.github.io/milvus-helm/"
+    chart_name: "milvus"
+    chart_version: "4.0.31"
+    milvus_version: "v2.6.8"
+    mode: "standalone"                      # standalone | cluster
 

@@ -1,0 +1,14 @@
+# S3 user for Milvus object storage (vectors, indexes, binlogs)
+# Secret: rook-ceph-object-user-s3-store-milvus (AccessKey, SecretKey)
+# Target bucket: milvus
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStoreUser
+metadata:
+  name: milvus
+  namespace: rook-ceph
+spec:
+  store: s3-store
+  displayName: "Milvus Vector Database"
+  capabilities:
+    user: "*"
+    bucket: "*"

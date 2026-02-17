@@ -1,0 +1,11 @@
+apiVersion: v2
+name: milvus-playground
+description: Milvus vector database for the data playground
+type: application
+version: 1.0.0
+appVersion: "2.6.8"
+
+dependencies:
+  - name: milvus
+    version: "4.0.31"
+    repository: "https://zilliztech.github.io/milvus-helm/"

@@ -1,0 +1,89 @@
+# Milvus Playground Values
+# Standalone mode with Woodpecker WAL (no Pulsar/Kafka dependency)
+#
+# Deploy with:
+#   helm dependency update
+#   helm upgrade --install milvus . -n milvus --create-namespace
+#
+# See: https://milvus.io/docs/install_cluster-helm.md
+
+milvus:
+  # Standalone mode — single pod, all components in one process
+  cluster:
+    enabled: false
+
+  # Milvus image
+  image:
+    all:
+      repository: milvusdb/milvus
+      tag: v2.6.8
+      pullPolicy: IfNotPresent
+
+  # Standalone config
+  standalone:
+    messageQueue: woodpecker
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    persistence:
+      enabled: true
+      persistentVolumeClaim:
+        size: 10Gi
+        storageClass: rook-ceph-block
+
+  # Woodpecker WAL — cloud-native write-ahead log (replaces Pulsar)
+  woodpecker:
+    enabled: true
+    persistence:
+      enabled: true
+      persistentVolumeClaim:
+        size: 10Gi
+        storageClass: rook-ceph-block
+
+  # Streaming node
+  streaming:
+    enabled: true
+
+  # Disable Pulsar (replaced by Woodpecker)
+  pulsarv3:
+    enabled: false
+
+  # etcd — metadata store (required)
+  etcd:
+    replicaCount: 1
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClass: rook-ceph-block
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # MinIO — object storage for vectors/indexes (required)
+  minio:
+    enabled: true
+    mode: standalone
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: rook-ceph-block
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # Service
+  service:
+    type: ClusterIP
+    port: 19530
