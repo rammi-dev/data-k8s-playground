@@ -1,0 +1,70 @@
+# Spark 4.0.0 — Native JVM execution (no Gluten)
+# Baseline for benchmark comparison.
+#
+# Deploy:  kubectl apply -f spark-app-baseline.yaml
+# Logs:    kubectl logs -n spark-workload spark-baseline-driver
+# Delete:  kubectl delete -f spark-app-baseline.yaml
+apiVersion: spark.apache.org/v1
+kind: SparkApplication
+metadata:
+  name: spark-baseline
+  namespace: spark-workload
+spec:
+  mainClass: org.apache.spark.sql.benchmark.GlutenBenchmark
+  jars:
+    - local:///opt/spark/jars/hadoop-aws-3.4.1.jar
+
+  runtimeVersions:
+    sparkVersion: "4.0.0"
+
+  sparkConf:
+    # S3 access (Ceph RGW)
+    spark.hadoop.fs.s3a.endpoint: "http://rook-ceph-rgw-s3-store.rook-ceph.svc:80"
+    spark.hadoop.fs.s3a.path.style.access: "true"
+    spark.hadoop.fs.s3a.impl: "org.apache.hadoop.fs.s3a.S3AFileSystem"
+    spark.hadoop.fs.s3a.connection.ssl.enabled: "false"
+    # Credentials injected by benchmark.sh via --set or env vars
+
+    # Resources
+    spark.driver.memory: "2g"
+    spark.executor.memory: "4g"
+    spark.executor.cores: "2"
+    spark.kubernetes.authenticate.driver.serviceAccountName: spark
+    spark.kubernetes.container.image: apache/spark:4.0.0
+    spark.kubernetes.executor.podNamePrefix: spark-baseline
+
+    # Disable dynamic allocation for reproducible benchmarks
+    spark.dynamicAllocation.enabled: "false"
+    spark.executor.instances: "1"
+
+  applicationTolerations:
+    resourceRetainPolicy: Always
+    restartConfig:
+      restartPolicy: Never
+
+  driverSpec:
+    podTemplateSpec:
+      spec:
+        serviceAccountName: spark
+        containers:
+          - name: spark-kubernetes-driver
+            resources:
+              requests:
+                cpu: "2"
+                memory: 2Gi
+              limits:
+                cpu: "2"
+                memory: 2Gi
+
+  executorSpec:
+    podTemplateSpec:
+      spec:
+        containers:
+          - name: spark-kubernetes-executor
+            resources:
+              requests:
+                cpu: "2"
+                memory: 4Gi
+              limits:
+                cpu: "2"
+                memory: 4Gi

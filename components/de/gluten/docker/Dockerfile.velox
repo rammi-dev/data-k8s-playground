@@ -1,0 +1,4 @@
+FROM apache/spark:4.0.0
+USER root
+COPY gluten-velox-bundle-spark4.0_2.13-*.jar /opt/spark/jars/
+USER spark

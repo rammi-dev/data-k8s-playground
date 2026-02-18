@@ -1,0 +1,80 @@
+# Spark 4.0.0 + Gluten/Velox backend
+# Native C++ execution via Meta's Velox engine.
+#
+# Deploy:  kubectl apply -f spark-app-velox.yaml
+# Logs:    kubectl logs -n spark-workload spark-gluten-velox-driver
+# Delete:  kubectl delete -f spark-app-velox.yaml
+apiVersion: spark.apache.org/v1
+kind: SparkApplication
+metadata:
+  name: spark-gluten-velox
+  namespace: spark-workload
+spec:
+  mainClass: org.apache.spark.sql.benchmark.GlutenBenchmark
+  jars:
+    - local:///opt/spark/jars/hadoop-aws-3.4.1.jar
+
+  runtimeVersions:
+    sparkVersion: "4.0.0"
+
+  sparkConf:
+    # Gluten/Velox plugin
+    spark.plugins: "org.apache.gluten.GlutenPlugin"
+    spark.shuffle.manager: "org.apache.spark.shuffle.sort.ColumnarShuffleManager"
+    spark.gluten.sql.columnar.backend.lib: "velox"
+    spark.gluten.sql.columnar.maxBatchSize: "4096"
+    spark.gluten.sql.columnar.forceShuffledHashJoin: "true"
+
+    # Off-heap memory for native execution
+    spark.memory.offHeap.enabled: "true"
+    spark.memory.offHeap.size: "2g"
+
+    # S3 access (Ceph RGW)
+    spark.hadoop.fs.s3a.endpoint: "http://rook-ceph-rgw-s3-store.rook-ceph.svc:80"
+    spark.hadoop.fs.s3a.path.style.access: "true"
+    spark.hadoop.fs.s3a.impl: "org.apache.hadoop.fs.s3a.S3AFileSystem"
+    spark.hadoop.fs.s3a.connection.ssl.enabled: "false"
+
+    # Resources
+    spark.driver.memory: "2g"
+    spark.executor.memory: "2g"
+    spark.executor.cores: "2"
+    spark.kubernetes.authenticate.driver.serviceAccountName: spark
+    spark.kubernetes.container.image: spark-gluten-velox:4.0.0
+    spark.kubernetes.executor.podNamePrefix: spark-gluten-velox
+
+    # Disable dynamic allocation for reproducible benchmarks
+    spark.dynamicAllocation.enabled: "false"
+    spark.executor.instances: "1"
+
+  applicationTolerations:
+    resourceRetainPolicy: Always
+    restartConfig:
+      restartPolicy: Never
+
+  driverSpec:
+    podTemplateSpec:
+      spec:
+        serviceAccountName: spark
+        containers:
+          - name: spark-kubernetes-driver
+            resources:
+              requests:
+                cpu: "2"
+                memory: 2Gi
+              limits:
+                cpu: "2"
+                memory: 2Gi
+
+  executorSpec:
+    podTemplateSpec:
+      spec:
+        containers:
+          - name: spark-kubernetes-executor
+            resources:
+              requests:
+                cpu: "2"
+                memory: 4Gi
+              limits:
+                cpu: "2"
+                memory: 4Gi
