@@ -15,13 +15,33 @@ flowchart TB
             Ceph --> S3 & Block & FS
         end
 
-        subgraph Pluggable["Pluggable Components (Helm Charts)"]
-            Mongo["Percona MongoDB"]
-            Mon["Monitoring\n(Grafana + Prometheus + Loki)"]
-            Future["...more"]
+        subgraph Databases["Databases"]
+            PG["PostgreSQL (CloudNativePG)"]
+            Milvus["Milvus (Vector DB)"]
+            Dremio["Dremio (Lakehouse)"]
         end
 
-        Pluggable -->|"storage"| Core
+        subgraph DataProc["Data Processing"]
+            Spark["Spark Operator"]
+            Airflow["Airflow"]
+            Gluten["Gluten (Velox / ClickHouse)"]
+            Iceberg["Iceberg"]
+        end
+
+        subgraph Events["Events & Networking"]
+            Kafka["Strimzi Kafka"]
+            Knative["Knative"]
+            Apicurio["Apicurio Registry"]
+            Istio["Istio"]
+        end
+
+        subgraph Mon["Monitoring"]
+            Grafana["Grafana + Prometheus + Loki"]
+        end
+
+        Databases -->|"storage"| Core
+        DataProc -->|"storage"| Core
+        Events -->|"storage"| Core
     end
 
     subgraph Clients["Client Access (WSL / Windows)"]
@@ -39,10 +59,26 @@ flowchart TB
 
 | Component | Status | Description |
 |-----------|--------|-------------|
-| [Ceph](components/ceph/README.md) | Core | S3 object store, block & filesystem storage |
-| [PostgreSQL](components/postgres/README.md) | Pluggable | CloudNativePG operator for PostgreSQL databases |
-| [Percona MongoDB](components/percona-mongo/README.md) | Pluggable | Replicated MongoDB with backup to S3 |
+| **Core** | | |
+| [Ceph](components/ceph/README.md) | Core | S3 object store, block & filesystem storage (Rook) |
 | [Monitoring](components/monitoring/README.md) | Pluggable | Grafana, Prometheus, Loki observability stack |
+| **Databases** | | |
+| [PostgreSQL](components/postgres/README.md) | Pluggable | CloudNativePG operator for PostgreSQL |
+| [Milvus](components/milvus/README.md) | Pluggable | Vector database for similarity search and AI |
+| [Dremio](components/dremio/README.md) | Pluggable | Data lakehouse query engine (EE v26.1), Ceph S3 backend |
+| **Data Processing** | | |
+| [Spark (Apache)](components/spark/apache/) | Pluggable | Spark Operator for Kubernetes |
+| [Spark (Kubeflow)](components/spark/kubeflow/) | Pluggable | Kubeflow Spark Operator |
+| [Airflow](components/airflow/README.md) | Pluggable | Apache Airflow workflow orchestration |
+| **Data Engineering** | | |
+| [Gluten](components/de/gluten/README.md) | Pluggable | Native Spark execution via Velox/ClickHouse backends |
+| [Iceberg](components/de/iceberg/) | Pluggable | Apache Iceberg table format |
+| **Events & Networking** | | |
+| [Strimzi](components/events/strimzi/README.md) | Pluggable | Apache Kafka on Kubernetes |
+| [Knative](components/events/knative/README.md) | Pluggable | Serverless event-driven workloads |
+| [Apicurio](components/events/apicurio/README.md) | Pluggable | Schema registry for Kafka |
+| [Istio](components/events/istio/README.md) | Pluggable | Service mesh |
+| [Envoy Gateway](components/events/envoy-gateway/README.md) | Pluggable | API gateway |
 
 ## Deployment Methods
 
@@ -289,6 +325,11 @@ This directory is mounted inside the VM at `/data`.
 | [Networking](docs/NETWORKING.md) | Access K8s services from Windows host |
 | [Ceph](components/ceph/README.md) | Ceph storage deployment |
 | [Monitoring](components/monitoring/README.md) | Grafana, Prometheus, Loki stack |
+| [Milvus](components/milvus/README.md) | Vector database with Ceph S3 + RBD |
+| [Dremio](components/dremio/README.md) | Lakehouse query engine |
+| [Gluten](components/de/gluten/README.md) | Native Spark execution (Velox/ClickHouse) |
+| [Events](components/events/README.md) | Kafka, Knative, Istio, Apicurio |
+| [Airflow](components/airflow/README.md) | Workflow orchestration |
 
 ## Troubleshooting
 
