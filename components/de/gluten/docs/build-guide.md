@@ -55,9 +55,14 @@ minikube image load spark-gluten-velox:4.0.0
 minikube image load spark-gluten-ch:4.0.0
 ```
 
-## Option B: Build from Source (Spark 4.1.1)
+## Option B: Build from Source
 
-For matching the playground's Spark 4.1.1 exactly.
+Gluten has **no `-Pspark-4.1` profile** yet. The highest supported profile is `-Pspark-4.0`, which compiles against Spark 4.0.0 internal APIs (`catalyst`, `sql.execution`).
+
+> **Spark 4.1.1 does NOT work.** Overriding `-Dspark.version=4.1.1` fails — Spark 4.1 changed internal APIs that Gluten's `shims/spark40/` layer depends on (`StoragePartitionJoinParams` removed, `createSparkPlan`/`readFooter` signatures changed, `GenerateTreeStringShim` Int→Boolean). A new `shims/spark41/` module is needed upstream. Use **Spark 4.0.0** for all Gluten builds.
+
+
+Use `-Pspark-4.0` as-is. The Gluten JAR is compiled against Spark 4.0.0 APIs but loaded into a Spark 4.0.0 runtime — fully compatible. For benchmarking, the execution engine differences between 4.0 and 4.1 are negligible compared to the JVM→native speedup.
 
 ### Prerequisites
 
@@ -84,21 +89,22 @@ sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 100
 # Clone
 git clone https://github.com/apache/incubator-gluten.git
 cd incubator-gluten
-
-# Checkout main branch (Spark 4.0 support)
 git checkout main
 
-# Build Velox backend
-mvn clean package -Pspark-4.0 -Pbackends-velox -DskipTests \
+# Build Velox backend (compiles against Spark 4.0.0)
+mvn clean package -Pspark-4.0 -Pscala-2.13 -Pbackends-velox -DskipTests \
     -Dmaven.javadoc.skip=true -Dcheckstyle.skip=true
-
 # Output: backends-velox/target/gluten-velox-bundle-spark4.0_2.13-*.jar
 
-# Build ClickHouse backend (separate build)
-mvn clean package -Pspark-4.0 -Pbackends-clickhouse -DskipTests \
+# Build ClickHouse backend (separate build, compiles against Spark 4.0.0)
+# NOTE: ClickHouse backend requires -Pdelta profile
+mvn clean package -Pspark-4.0 -Pscala-2.13 -Pbackends-clickhouse -Pdelta -DskipTests \
     -Dmaven.javadoc.skip=true -Dcheckstyle.skip=true
-
 # Output: backends-clickhouse/target/gluten-clickhouse-bundle-spark4.0_2.13-*.jar
+
+# NOTE: -Dspark.version=4.1.1 override does NOT work (confirmed).
+# Spark 4.1 removed StoragePartitionJoinParams, changed createSparkPlan/readFooter
+# signatures, and GenerateTreeStringShim Int→Boolean. Wait for upstream shims/spark41.
 ```
 
 Build time: ~30-60 minutes depending on hardware. The native portion (Velox/ClickHouse compilation) takes the majority of time.
@@ -115,10 +121,10 @@ ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 WORKDIR /build
 RUN git clone --depth 1 https://github.com/apache/incubator-gluten.git
 WORKDIR /build/incubator-gluten
-RUN mvn clean package -Pspark-4.0 -Pbackends-velox -DskipTests \
+RUN mvn clean package -Pspark-4.0 -Pscala-2.13 -Pbackends-velox -DskipTests \
     -Dmaven.javadoc.skip=true -Dcheckstyle.skip=true
 
-# Stage 2: Runtime
+# Stage 2: Runtime (must match the Spark version Gluten was compiled against)
 FROM apache/spark:4.0.0
 USER root
 COPY --from=builder /build/incubator-gluten/backends-velox/target/gluten-velox-bundle-*.jar /opt/spark/jars/
