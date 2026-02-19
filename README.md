@@ -35,6 +35,10 @@ flowchart TB
             Istio["Istio"]
         end
 
+        subgraph ML["ML & GenAI"]
+            Ollama["Ollama (LLM)"]
+        end
+
         subgraph Mon["Monitoring"]
             Grafana["Grafana + Prometheus + Loki"]
         end
@@ -42,6 +46,7 @@ flowchart TB
         Databases -->|"storage"| Core
         DataProc -->|"storage"| Core
         Events -->|"storage"| Core
+        ML -->|"storage"| Core
     end
 
     subgraph Clients["Client Access (WSL / Windows)"]
@@ -79,6 +84,8 @@ flowchart TB
 | [Apicurio](components/events/apicurio/README.md) | Pluggable | Schema registry for Kafka |
 | [Istio](components/events/istio/README.md) | Pluggable | Service mesh |
 | [Envoy Gateway](components/events/envoy-gateway/README.md) | Pluggable | API gateway |
+| **ML & GenAI** | | |
+| [Ollama](components/ollama/README.md) | Pluggable | Local LLM inference server, OpenAI-compatible API |
 
 ## Deployment Methods
 
@@ -330,6 +337,7 @@ This directory is mounted inside the VM at `/data`.
 | [Gluten](components/de/gluten/README.md) | Native Spark execution (Velox/ClickHouse) |
 | [Events](components/events/README.md) | Kafka, Knative, Istio, Apicurio |
 | [Airflow](components/airflow/README.md) | Workflow orchestration |
+| [Ollama](components/ollama/README.md) | Local LLM inference server |
 
 ## Troubleshooting
 

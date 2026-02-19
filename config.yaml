@@ -150,3 +150,12 @@ components:
     milvus_version: "v2.6.8"
     mode: "standalone"                      # standalone | cluster
 
+  # ML & GenAI: Local LLM inference server
+  ollama:
+    enabled: true
+    namespace: "ollama"
+    chart_repo: "https://helm.otwld.com/"
+    chart_name: "ollama"
+    chart_version: "1.43.0"
+    model: "tinyllama"                      # Model to pull on startup
+

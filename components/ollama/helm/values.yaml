@@ -1,0 +1,46 @@
+ollama:
+  # Single replica, CPU-only (no GPU on minikube Hyper-V)
+  replicaCount: 1
+
+  image:
+    repository: ollama/ollama
+    pullPolicy: IfNotPresent
+
+  # Models to pull on startup
+  models:
+    pull:
+      - tinyllama
+
+  # Resources — tinyllama Q4 needs ~2GB RAM when loaded
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "4"
+      memory: 4Gi
+
+  # Persistence on Ceph RBD for model storage
+  persistence:
+    enabled: true
+    storageClassName: ceph-block
+    size: 20Gi
+
+  # Service
+  service:
+    type: ClusterIP
+    port: 11434
+
+  # No GPU
+  gpu:
+    enabled: false
+
+  # Liveness/readiness
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 60
+    periodSeconds: 10
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 5

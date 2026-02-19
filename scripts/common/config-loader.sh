@@ -176,6 +176,14 @@ MILVUS_CHART_VERSION=$(load_config '.components.milvus.chart_version' '4.0.31')
 MILVUS_VERSION=$(load_config '.components.milvus.milvus_version' 'v2.6.8')
 MILVUS_MODE=$(load_config '.components.milvus.mode' 'standalone')
 
+# Component: Ollama (LLM Inference)
+OLLAMA_ENABLED=$(load_config '.components.ollama.enabled' 'false')
+OLLAMA_NAMESPACE=$(load_config '.components.ollama.namespace' 'ollama')
+OLLAMA_CHART_REPO=$(load_config '.components.ollama.chart_repo' 'https://helm.otwld.com/')
+OLLAMA_CHART_NAME=$(load_config '.components.ollama.chart_name' 'ollama')
+OLLAMA_CHART_VERSION=$(load_config '.components.ollama.chart_version' '1.43.0')
+OLLAMA_MODEL=$(load_config '.components.ollama.model' 'tinyllama')
+
 # Export all variables
 export VM_CPUS VM_MEMORY VM_DISK_SIZE VM_BOX VM_NAME
 export RESERVED_CPUS RESERVED_MEMORY
@@ -193,5 +201,6 @@ export POSTGRES_ENABLED POSTGRES_NAMESPACE POSTGRES_CHART_REPO POSTGRES_CHART_NA
 export SPARK_APACHE_ENABLED SPARK_APACHE_NAMESPACE SPARK_APACHE_CHART_REPO SPARK_APACHE_CHART_NAME SPARK_APACHE_CHART_VERSION
 export SPARK_KUBEFLOW_ENABLED SPARK_KUBEFLOW_NAMESPACE SPARK_KUBEFLOW_CHART_REPO SPARK_KUBEFLOW_CHART_NAME SPARK_KUBEFLOW_CHART_VERSION
 export MILVUS_ENABLED MILVUS_NAMESPACE MILVUS_CHART_REPO MILVUS_CHART_NAME MILVUS_CHART_VERSION MILVUS_VERSION MILVUS_MODE
+export OLLAMA_ENABLED OLLAMA_NAMESPACE OLLAMA_CHART_REPO OLLAMA_CHART_NAME OLLAMA_CHART_VERSION OLLAMA_MODEL
 export PROJECT_ROOT CONFIG_FILE
 
