@@ -32,12 +32,12 @@ echo "=========================================="
 # PRE-FLIGHT: Verify Ceph StorageClass + S3
 # ============================================================================
 print_info "Verifying Ceph StorageClass is available..."
-if ! kubectl get sc rook-ceph-block &>/dev/null; then
-    print_error "StorageClass 'rook-ceph-block' not found"
+if ! kubectl get sc ceph-block &>/dev/null; then
+    print_error "StorageClass 'ceph-block' not found"
     print_info "Deploy Ceph first: ./components/ceph/scripts/build.sh"
     exit 1
 fi
-print_success "  StorageClass rook-ceph-block available"
+print_success "  StorageClass ceph-block available"
 
 print_info "Verifying Ceph S3 object store..."
 if ! kubectl -n "$CEPH_NAMESPACE" get cephobjectstore s3-store &>/dev/null; then
@@ -117,7 +117,6 @@ helm dependency update "$HELM_DIR"
 helm upgrade --install milvus "$HELM_DIR" \
     -n "$MILVUS_NAMESPACE" \
     -f "$HELM_DIR/values.yaml" \
-    -f "$HELM_DIR/values-overrides.yaml" \
     --set "milvus.externalS3.accessKey=$S3_ACCESS_KEY" \
     --set "milvus.externalS3.secretKey=$S3_SECRET_KEY" \
     --wait --timeout=600s

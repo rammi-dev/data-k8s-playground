@@ -1,16 +1,16 @@
 # Milvus Playground Values
-# Standalone mode with Woodpecker WAL (no Pulsar/Kafka dependency)
+# Cluster mode with embedded Woodpecker WAL, Ceph S3 storage
+#
+# Chart v5.0.11 defaults: mixCoordinator, woodpecker, no Pulsar/Kafka
 #
 # Deploy with:
 #   helm dependency update
-#   helm upgrade --install milvus . -n milvus --create-namespace
-#
-# See: https://milvus.io/docs/install_cluster-helm.md
+#   helm upgrade --install milvus . -n milvus -f values.yaml
 
 milvus:
-  # Standalone mode — single pod, all components in one process
+  # Cluster mode (chart default)
   cluster:
-    enabled: false
+    enabled: true
 
   # Milvus image
   image:
@@ -19,38 +19,61 @@ milvus:
       tag: v2.6.8
       pullPolicy: IfNotPresent
 
-  # Standalone config
-  standalone:
-    messageQueue: woodpecker
+  # mixCoordinator (chart default: enabled)
+  mixCoordinator:
+    replicas: 1
     resources:
       requests:
-        cpu: 500m
-        memory: 2Gi
+        cpu: 250m
+        memory: 512Mi
       limits:
-        cpu: 2000m
-        memory: 4Gi
-    persistence:
-      enabled: true
-      persistentVolumeClaim:
-        size: 10Gi
-        storageClass: rook-ceph-block
+        cpu: 1000m
+        memory: 1Gi
 
-  # Woodpecker WAL — cloud-native write-ahead log (replaces Pulsar)
-  woodpecker:
-    enabled: true
-    persistence:
-      enabled: true
-      persistentVolumeClaim:
-        size: 10Gi
-        storageClass: rook-ceph-block
+  # Worker nodes
+  proxy:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
 
-  # Streaming node
-  streaming:
-    enabled: true
+  queryNode:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
 
-  # Disable Pulsar (replaced by Woodpecker)
-  pulsarv3:
-    enabled: false
+  dataNode:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+  indexNode:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+  # Woodpecker WAL — embedded, uses S3 for storage (chart default)
+  standalone:
+    messageQueue: woodpecker
 
   # etcd — metadata store (required)
   etcd:
@@ -58,7 +81,7 @@ milvus:
     persistence:
       enabled: true
       size: 5Gi
-      storageClass: rook-ceph-block
+      storageClass: ceph-block
     resources:
       requests:
         cpu: 100m
@@ -67,21 +90,28 @@ milvus:
         cpu: 500m
         memory: 512Mi
 
-  # MinIO — object storage for vectors/indexes (required)
+  # MinIO — disabled, using Ceph RGW S3 instead
   minio:
+    enabled: false
+
+  # Ceph RGW as S3 backend
+  # accessKey/secretKey injected by build.sh via --set
+  externalS3:
     enabled: true
-    mode: standalone
-    persistence:
-      enabled: true
-      size: 20Gi
-      storageClass: rook-ceph-block
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
+    host: rook-ceph-rgw-s3-store.rook-ceph.svc
+    port: "80"
+    useSSL: false
+    bucketName: milvus
+    rootPath: file
+    useIAM: false
+    cloudProvider: "aws"
+
+  # Attu — web management console
+  attu:
+    enabled: true
+    service:
+      type: ClusterIP
+      port: 3000
 
   # Service
   service:

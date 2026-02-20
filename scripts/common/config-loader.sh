@@ -172,7 +172,7 @@ MILVUS_ENABLED=$(load_config '.components.milvus.enabled' 'false')
 MILVUS_NAMESPACE=$(load_config '.components.milvus.namespace' 'milvus')
 MILVUS_CHART_REPO=$(load_config '.components.milvus.chart_repo' 'https://zilliztech.github.io/milvus-helm/')
 MILVUS_CHART_NAME=$(load_config '.components.milvus.chart_name' 'milvus')
-MILVUS_CHART_VERSION=$(load_config '.components.milvus.chart_version' '4.0.31')
+MILVUS_CHART_VERSION=$(load_config '.components.milvus.chart_version' '5.0.11')
 MILVUS_VERSION=$(load_config '.components.milvus.milvus_version' 'v2.6.8')
 MILVUS_MODE=$(load_config '.components.milvus.mode' 'standalone')
 
