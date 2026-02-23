@@ -20,7 +20,7 @@ graph TB
         BP[Broker Pod<br/>KRaft controller + broker]
         EO[Entity Operator Pod<br/>topic + user mgmt]
         SVC[Bootstrap Service<br/>:9092 plain / :9093 TLS]
-        PVC[PVC 10Gi<br/>rook-ceph-block]
+        PVC[PVC 10Gi<br/>ceph-block]
     end
 
     KC --> BP
@@ -384,7 +384,7 @@ spec:
       - id: 0
         type: persistent-claim
         size: 10Gi
-        class: rook-ceph-block          # Ceph RBD
+        class: ceph-block          # Ceph RBD
         deleteClaim: false              # keep data on CR delete
   resources:
     requests: {memory: 1Gi, cpu: 500m}

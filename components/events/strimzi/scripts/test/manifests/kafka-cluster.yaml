@@ -1,10 +1,10 @@
 # Strimzi Kafka Cluster — KRaft mode (no ZooKeeper)
-# Minimal single-node configuration for development
+# Minimal single-node configuration for testing
 #
 # Bootstrap address after deploy:
 #   events-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaNodePool
 metadata:
   name: dual-role
@@ -21,8 +21,8 @@ spec:
       - id: 0
         type: persistent-claim
         size: 10Gi
-        class: rook-ceph-block
-        deleteClaim: false
+        class: ceph-block
+        deleteClaim: true
   resources:
     requests:
       memory: 1Gi
@@ -31,7 +31,7 @@ spec:
       memory: 2Gi
       cpu: 1000m
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: Kafka
 metadata:
   name: events-kafka

@@ -67,7 +67,7 @@ spec:
       - id: 0
         type: persistent-claim
         size: 5Gi
-        class: rook-ceph-block
+        class: ceph-block
         deleteClaim: false
   resources:
     requests: {memory: 512Mi, cpu: 250m}
@@ -94,7 +94,7 @@ spec:
       - id: 0
         type: persistent-claim
         size: 50Gi
-        class: rook-ceph-block-ssd      # fast StorageClass
+        class: ceph-block-ssd      # fast StorageClass
         deleteClaim: false
   resources:
     requests: {memory: 4Gi,  cpu: 2000m}
@@ -121,7 +121,7 @@ spec:
       - id: 0
         type: persistent-claim
         size: 500Gi
-        class: rook-ceph-block-hdd      # cheap StorageClass
+        class: ceph-block-hdd      # cheap StorageClass
         deleteClaim: false
   resources:
     requests: {memory: 2Gi,  cpu: 500m}

@@ -25,20 +25,23 @@ Strimzi-managed Apache Kafka cluster for the event-driven playground.
 ## Prerequisites
 
 - Kubernetes cluster accessible via kubectl
-- Ceph deployed with `rook-ceph-block` StorageClass (Kafka PVCs)
+- Ceph deployed with `ceph-block` StorageClass (Kafka PVCs)
 - `components.strimzi.enabled: true` in config.yaml
 
 ## Configuration
 
-Edit `helm/values.yaml` for operator settings, `manifests/kafka-cluster.yaml` for cluster sizing.
+Edit `helm/values.yaml` for operator settings, `scripts/test/manifests/kafka-cluster.yaml` for test cluster sizing.
 
 ## Usage
 
 ```bash
-# Deploy
+# Deploy operator
 ./scripts/build.sh
 
-# Destroy
+# Test (creates cluster → validates → tears down)
+./scripts/test/test-kafka.sh
+
+# Destroy operator
 ./scripts/destroy.sh
 ```
 
@@ -50,7 +53,7 @@ events-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092
 
 ## Storage
 
-Kafka data persists on Ceph RBD via PVC (`rook-ceph-block` StorageClass, 10Gi per broker).
+Kafka data persists on Ceph RBD via PVC (`ceph-block` StorageClass, 10Gi per broker).
 
 ## File Structure
 
@@ -63,12 +66,12 @@ strimzi/
 │   ├── Chart.yaml           # Wrapper chart (depends on strimzi-kafka-operator)
 │   ├── values.yaml          # Operator configuration
 │   └── values-overrides.yaml
-├── manifests/
-│   └── kafka-cluster.yaml   # Kafka + KafkaNodePool CRs (applied by build.sh after operator)
 └── scripts/
-    ├── build.sh             # Deploy operator + cluster
+    ├── build.sh             # Deploy operator only
     ├── destroy.sh           # Full teardown
     ├── regenerate-rendered.sh
     └── test/
-        └── test-kafka.sh    # Test: CRDs, cluster status, produce/consume
+        ├── manifests/
+        │   └── kafka-cluster.yaml   # Test cluster (1 node, KRaft)
+        └── test-kafka.sh            # Create → test → destroy
 ```

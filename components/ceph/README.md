@@ -22,37 +22,69 @@ Rook-Ceph provides distributed storage for Kubernetes using Ceph.
 
 Two separate concerns, deployed independently:
 
-1. **Rook Operator** — Helm chart that deploys the operator, CSI drivers, and registers CRDs
-2. **Ceph Cluster** — Static CRD instances (`kubectl apply`) that the operator reads to deploy MONs, OSDs, RGW, MDS, etc.
+1. **Rook Operator** — Helm chart that deploys the operator, CSI drivers, and registers 25 CRDs
+2. **Ceph Cluster** — CRD instances (`kubectl apply`) that the operator watches to deploy daemons
+
+### CRD Landscape
+
+The operator registers 25 CRDs across 7 functional groups. Full reference with YAML examples, field descriptions, and use cases: [docs/crds.md](docs/crds.md).
 
 ```mermaid
 flowchart TB
-    subgraph Operator["Phase 1: Operator (Helm)"]
-        RookOp["Rook Operator"]
-        CSI["CSI Drivers"]
-        CRDs["CRDs"]
+    subgraph Core["Core"]
+        CC[CephCluster]
     end
 
-    subgraph Cluster["Phase 2: Cluster (kubectl apply)"]
-        CC["CephCluster"]
-        BP["CephBlockPool"]
-        FS["CephFilesystem"]
-        OS["CephObjectStore"]
-        TB["Toolbox"]
+    subgraph Block["Block Storage — RBD"]
+        BP[CephBlockPool]
+        BPRN[CephBlockPoolRadosNamespace]
+        RBDMirror[CephRBDMirror]
     end
 
-    subgraph Running["Deployed by Operator"]
-        MON["MON"]
-        MGR["MGR"]
-        OSD["OSD ×2"]
-        RGW["RGW"]
-        MDS["MDS"]
+    subgraph File["File Storage — CephFS"]
+        FS[CephFilesystem]
+        FSSVG[CephFilesystemSubVolumeGroup]
+        FSMirror[CephFilesystemMirror]
     end
 
-    RookOp -->|watches| Cluster
-    CC --> MON & MGR & OSD
-    OS --> RGW
-    FS --> MDS
+    subgraph Object["Object Storage — S3"]
+        OS[CephObjectStore]
+        OSU[CephObjectStoreUser]
+        OBC[ObjectBucketClaim]
+        OB[ObjectBucket]
+        BN[CephBucketNotification]
+        BT[CephBucketTopic]
+    end
+
+    subgraph MultiSite["Multi-Site Replication"]
+        OR[CephObjectRealm]
+        OZG[CephObjectZoneGroup]
+        OZ[CephObjectZone]
+    end
+
+    subgraph Gateways["Protocol Gateways"]
+        NFS[CephNFS]
+        NVMe[CephNVMeOFGateway]
+        COSI[CephCOSIDriver]
+    end
+
+    subgraph Auth["Auth"]
+        Client[CephClient]
+    end
+
+    subgraph CSI["CSI Plumbing (auto-managed)"]
+        Conn[CephConnection]
+        CP[ClientProfile]
+        CPM[ClientProfileMapping]
+        Drv[Driver]
+        OC[OperatorConfig]
+    end
+
+    CC --> Block & File & Object
+    OS --> MultiSite
+    BP --> BPRN
+    OBC --> OB
+    BT --> BN
 ```
 
 ### Storage Services
@@ -76,9 +108,9 @@ flowchart LR
     Apps -->|POSIX| CephFS
 ```
 
-### CRD Instances
+### Deployed Instances
 
-These are the custom resources applied by `create-cluster.sh` from `manifests/`. The Rook operator watches them and creates the corresponding Ceph daemons.
+CRD instances in this playground. Applied by `create-cluster.sh` from `manifests/`.
 
 | CRD | Instance | Manifest | Purpose |
 |-----|----------|----------|---------|
@@ -89,6 +121,8 @@ These are the custom resources applied by `create-cluster.sh` from `manifests/`.
 | `CephFilesystemSubVolumeGroup` | `ceph-filesystem-csi` | `cephfilesystem.yaml` | CSI subvolume group named `csi`. Required for the CephFS CSI driver to provision volumes within the filesystem. |
 | `CephObjectStore` | `s3-store` | `cephobjectstore.yaml` | S3-compatible object store. Creates data and metadata RADOS pools, and the operator deploys RGW (RADOS Gateway) pods to serve the S3 API on port 80. |
 | `CephObjectStoreUser` | `admin` | `s3-users/admin.yaml` | S3 admin user. The operator creates a Kubernetes secret (`rook-ceph-object-user-s3-store-admin`) with `AccessKey` and `SecretKey`. |
+| `ObjectBucketClaim` | `iceberg-upload` | (iceberg component) | S3 bucket provisioned via `ceph-bucket` StorageClass. Creates Secret (credentials) + ConfigMap (endpoint) in same namespace. |
+| `ObjectBucket` | `obc-rook-ceph-iceberg-upload` | (auto-created) | Cluster-scoped binding for the OBC. Tracks backing RGW bucket. Analogous to PV. |
 
 ### Running Pods
 

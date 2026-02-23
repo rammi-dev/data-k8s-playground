@@ -1,6 +1,6 @@
 #!/bin/bash
-# Deploy Strimzi Kafka Operator + Kafka Cluster to the Kubernetes cluster using Helm
-# Requires: Ceph deployed (for Kafka persistent storage on rook-ceph-block)
+# Deploy Strimzi Kafka Operator to the Kubernetes cluster using Helm
+# Requires: Ceph deployed (for Kafka persistent storage on ceph-block)
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,12 +32,12 @@ echo "=========================================="
 # PRE-FLIGHT: Verify Ceph StorageClass is available
 # ============================================================================
 print_info "Verifying Ceph StorageClass is available..."
-if ! kubectl get sc rook-ceph-block &>/dev/null; then
-    print_error "StorageClass 'rook-ceph-block' not found"
+if ! kubectl get sc ceph-block &>/dev/null; then
+    print_error "StorageClass 'ceph-block' not found"
     print_info "Deploy Ceph first: ./components/ceph/scripts/build.sh"
     exit 1
 fi
-print_success "  StorageClass rook-ceph-block available"
+print_success "  StorageClass ceph-block available"
 
 # ============================================================================
 # STEP 1: Create namespace
@@ -67,41 +67,19 @@ eval $HELM_CMD
 
 print_info "  Waiting for Strimzi operator..."
 kubectl wait --timeout=120s -n "$STRIMZI_NAMESPACE" \
-    deployment -l name=strimzi-cluster-operator --for=condition=Available
+    deployment/strimzi-cluster-operator --for=condition=Available
 
 print_success "  Strimzi Operator deployed"
 
 # ============================================================================
-# STEP 3: Deploy Kafka Cluster (KRaft mode)
-# ============================================================================
-print_info "Step 3: Deploying Kafka cluster (${STRIMZI_KAFKA_CLUSTER_NAME})..."
-
-kubectl apply -f "$COMPONENT_DIR/manifests/" -n "$STRIMZI_NAMESPACE"
-
-# Wait for Kafka ready (takes 2-3 minutes)
-print_info "  Waiting for Kafka cluster to be ready (this takes 2-3 minutes)..."
-for i in {1..36}; do
-    if kubectl get kafka "$STRIMZI_KAFKA_CLUSTER_NAME" -n "$STRIMZI_NAMESPACE" \
-        -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -q "True"; then
-        break
-    fi
-    [[ "$i" -eq 36 ]] && { print_error "Kafka cluster not ready after 3 minutes"; exit 1; }
-    sleep 5
-done
-
-print_success "  Kafka cluster deployed"
-
-# ============================================================================
 # STATUS
 # ============================================================================
-print_success "Strimzi Kafka Deployed!"
+print_success "Strimzi Operator Deployed!"
 echo "=========================================="
 echo ""
-print_info "Strimzi Pods:"
+print_info "Operator Pods:"
 kubectl -n "$STRIMZI_NAMESPACE" get pods
 echo ""
-print_info "Bootstrap: ${STRIMZI_KAFKA_CLUSTER_NAME}-kafka-bootstrap.${STRIMZI_NAMESPACE}.svc.cluster.local:9092"
-echo ""
 print_info "Next steps:"
-print_info "  1. Deploy Knative:       ./components/events/knative/scripts/build.sh"
-print_info "  2. Create topics:        kubectl apply -f <topic.yaml> -n $STRIMZI_NAMESPACE"
+print_info "  1. Test (creates cluster, validates, tears down):"
+print_info "     ./components/events/strimzi/scripts/test/test-kafka.sh"
