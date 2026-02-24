@@ -1,0 +1,3 @@
+# Default values for the Camel K operator chart
+# These are passed through to the camel-k subchart
+camel-k: {}

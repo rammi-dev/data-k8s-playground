@@ -112,6 +112,13 @@ components:
     namespace: "envoy-gateway-system"
     chart_version: "v1.7.0"
 
+  camel_k:
+    enabled: true
+    namespace: "camel-k"
+    chart_repo: "https://apache.github.io/camel-k/charts/"
+    chart_name: "camel-k"
+    chart_version: "2.9.1"
+
   istio:
     enabled: false               # Phase 3 (enable when ready, disable envoy_gateway)
     namespace: "istio-system"

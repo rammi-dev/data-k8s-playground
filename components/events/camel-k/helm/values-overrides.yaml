@@ -1,0 +1,5 @@
+# Playground-specific overrides for the Camel K operator
+camel-k:
+  operator:
+    # Operator watches all namespaces (so Integrations can run in eventing-demo, etc.)
+    global: "true"

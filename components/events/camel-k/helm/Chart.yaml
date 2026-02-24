@@ -1,0 +1,13 @@
+apiVersion: v2
+name: camel-k-playground
+description: Apache Camel K operator for the event-driven playground
+type: application
+version: 1.0.0
+appVersion: "2.9.1"
+
+# Dependencies on official Camel K Helm chart
+# Run: helm dependency update
+dependencies:
+  - name: camel-k
+    version: "2.9.1"
+    repository: "https://apache.github.io/camel-k/charts/"

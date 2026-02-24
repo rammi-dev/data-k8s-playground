@@ -140,6 +140,13 @@ ENVOY_GATEWAY_ENABLED=$(load_config '.components.envoy_gateway.enabled' 'false')
 ENVOY_GATEWAY_NAMESPACE=$(load_config '.components.envoy_gateway.namespace' 'envoy-gateway-system')
 ENVOY_GATEWAY_CHART_VERSION=$(load_config '.components.envoy_gateway.chart_version' 'v1.7.0')
 
+# Component: Camel K
+CAMEL_K_ENABLED=$(load_config '.components.camel_k.enabled' 'false')
+CAMEL_K_NAMESPACE=$(load_config '.components.camel_k.namespace' 'camel-k')
+CAMEL_K_CHART_REPO=$(load_config '.components.camel_k.chart_repo' 'https://apache.github.io/camel-k/charts/')
+CAMEL_K_CHART_NAME=$(load_config '.components.camel_k.chart_name' 'camel-k')
+CAMEL_K_CHART_VERSION=$(load_config '.components.camel_k.chart_version' '2.9.1')
+
 # Component: Istio
 ISTIO_ENABLED=$(load_config '.components.istio.enabled' 'false')
 ISTIO_NAMESPACE=$(load_config '.components.istio.namespace' 'istio-system')
@@ -196,6 +203,7 @@ export STRIMZI_ENABLED STRIMZI_NAMESPACE STRIMZI_CHART_REPO STRIMZI_CHART_NAME S
 export APICURIO_ENABLED APICURIO_NAMESPACE APICURIO_IMAGE APICURIO_VERSION APICURIO_STORAGE APICURIO_REPLICAS
 export KNATIVE_ENABLED KNATIVE_NAMESPACE KNATIVE_SERVING_NAMESPACE KNATIVE_EVENTING_NAMESPACE KNATIVE_CHART_REPO KNATIVE_CHART_NAME KNATIVE_CHART_VERSION KNATIVE_VERSION
 export ENVOY_GATEWAY_ENABLED ENVOY_GATEWAY_NAMESPACE ENVOY_GATEWAY_CHART_VERSION
+export CAMEL_K_ENABLED CAMEL_K_NAMESPACE CAMEL_K_CHART_REPO CAMEL_K_CHART_NAME CAMEL_K_CHART_VERSION
 export ISTIO_ENABLED ISTIO_NAMESPACE ISTIO_CHART_REPO ISTIO_CHART_VERSION
 export POSTGRES_ENABLED POSTGRES_NAMESPACE POSTGRES_CHART_REPO POSTGRES_CHART_NAME POSTGRES_CHART_VERSION
 export SPARK_APACHE_ENABLED SPARK_APACHE_NAMESPACE SPARK_APACHE_CHART_REPO SPARK_APACHE_CHART_NAME SPARK_APACHE_CHART_VERSION
