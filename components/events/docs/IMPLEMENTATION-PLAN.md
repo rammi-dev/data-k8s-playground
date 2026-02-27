@@ -1016,6 +1016,58 @@ Shared: ingest-core (pip package)
 
 Instead of 4 branches: one shared library and two thin wrappers. Schema validation, error handling, monitoring, retry logic — all in `ingest_core`, written once.
 
+#### Alternative: Apache NiFi / MiNiFi as Dispatcher
+
+The dispatcher role (aggregate S3 events → route to light/heavy topic) can be fulfilled by **Apache NiFi + MiNiFi** instead of Camel K. Both approaches share the same `ingest_core` library, Kafka topics, and worker functions — only the dispatcher implementation changes.
+
+**NiFi approach:**
+
+```
+S3 events (Kafka topic)
+   │
+   ▼
+MiNiFi agent (ConsumeKafka)
+   │
+   ├── MergeContent (batch by count/size)
+   ├── EvaluateJsonPath (extract total_bytes)
+   ├── RouteOnAttribute (totalBytes < 500MB?)
+   │
+   ├── yes → PublishKafka → light-ingest
+   └── no  → PublishKafka → heavy-ingest
+```
+
+**Comparison:**
+
+| Criteria | Camel K (current) | NiFi / MiNiFi |
+|----------|-------------------|---------------|
+| **Runtime** | JVM pod (~256-512MB) | MiNiFi Java agent (~128MB) or C++ agent (~5MB) |
+| **Scale to zero** | Yes (Knative trait) | No — long-running agent |
+| **Flow design** | YAML DSL or Kaoto visual editor | NiFi UI (drag-and-drop canvas) |
+| **Data provenance** | None — add logging yourself | Built-in — tracks every byte, full audit trail |
+| **Backpressure** | Manual (Kafka consumer lag) | Built-in — core NiFi feature |
+| **K8s native** | CRD model (`kubectl apply` a route) | No CRDs — deploy as StatefulSet/DaemonSet |
+| **Aggregation** | `aggregate` EIP (size/timeout/predicate) | MergeContent processor (count/size/bin-packing) |
+| **Routing rules** | Camel Simple language expressions | NiFi Expression Language + RouteOnAttribute |
+| **Management** | Operator manages lifecycle | NiFi central server (C2 protocol) or static YAML |
+| **Connector count** | 300+ Camel components | 300+ NiFi processors |
+| **Best for** | EIP patterns, Knative integration | Data provenance, visual flow design, edge collection |
+
+**When to choose NiFi instead:**
+
+- Data provenance / audit trail is a requirement (regulatory, compliance)
+- You want a visual UI to design, monitor, and debug flows in real-time
+- You plan to add NiFi for other data engineering tasks (the dispatcher becomes one flow among many)
+- The MiNiFi C++ agent's 5MB footprint matters (edge, resource-constrained)
+
+**When to stay with Camel K:**
+
+- You want scale-to-zero (no traffic = no pods = no cost)
+- K8s-native CRD model fits your GitOps workflow
+- Complex EIP patterns beyond simple routing (saga, circuit breaker, idempotent consumer)
+- You don't want to run a NiFi server for flow management
+
+**Switching cost is low** — the dispatcher is a thin layer. The `ingest_core` library, Kafka topics (`light-ingest`, `heavy-ingest`), message contract (`IngestRequest`), and both workers (PyIceberg, Spark) remain unchanged regardless of which dispatcher is used.
+
 ### Phase 2 Verification Checklist
 
 - [ ] Strimzi operator running in `kafka`
