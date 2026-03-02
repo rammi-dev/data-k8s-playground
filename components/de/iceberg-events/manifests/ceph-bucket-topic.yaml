@@ -1,0 +1,16 @@
+# CephBucketTopic — configures RGW to publish S3 events to Kafka
+apiVersion: ceph.rook.io/v1
+kind: CephBucketTopic
+metadata:
+  name: iceberg-events-topic
+  namespace: rook-ceph
+spec:
+  objectStoreName: s3-store
+  objectStoreNamespace: rook-ceph
+  opaqueData: ""
+  persistent: true
+  endpoint:
+    kafka:
+      uri: kafka://events-kafka-kafka-bootstrap.iceberg-events.svc.cluster.local:9092
+      ackLevel: broker
+      useSSL: false

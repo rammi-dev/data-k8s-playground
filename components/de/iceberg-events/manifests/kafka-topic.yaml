@@ -1,0 +1,13 @@
+# Kafka topic for S3 event notifications from Ceph RGW
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: s3-events
+  namespace: iceberg-events
+  labels:
+    strimzi.io/cluster: events-kafka
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: "86400000"

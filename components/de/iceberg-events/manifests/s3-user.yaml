@@ -1,0 +1,30 @@
+# S3 credentials secret (referenced by CephObjectStoreUser below)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: iceberg-events-s3-keys
+  namespace: rook-ceph
+type: Opaque
+stringData:
+  access-key: minio
+  secret-key: minio123
+---
+# S3 operating user for iceberg-events bucket
+# Reuses same RGW user "minio" — idempotent if iceberg project already created it
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStoreUser
+metadata:
+  name: minio
+  namespace: rook-ceph
+spec:
+  store: s3-store
+  displayName: "Iceberg Events"
+  capabilities:
+    bucket: "*"
+  keys:
+    - accessKeyRef:
+        name: iceberg-events-s3-keys
+        key: access-key
+      secretKeyRef:
+        name: iceberg-events-s3-keys
+        key: secret-key

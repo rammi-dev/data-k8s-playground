@@ -1,0 +1,11 @@
+# CephBucketNotification — fires on all object uploads to the iceberg-events bucket
+# Bound to OBC via label: bucket-notification-iceberg-events-notify: iceberg-events-notify
+apiVersion: ceph.rook.io/v1
+kind: CephBucketNotification
+metadata:
+  name: iceberg-events-notify
+  namespace: rook-ceph
+spec:
+  topic: iceberg-events-topic
+  events:
+    - s3:ObjectCreated:*

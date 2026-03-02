@@ -1,0 +1,2 @@
+# Default values — passed through to kafbat-ui/kafka-ui subchart
+kafka-ui: {}

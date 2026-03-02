@@ -1,0 +1,12 @@
+# ObjectBucketClaim — creates bucket "iceberg-events" in RGW
+# Label binds CephBucketNotification to this bucket
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: iceberg-events
+  namespace: rook-ceph
+  labels:
+    bucket-notification-iceberg-events-notify: iceberg-events-notify
+spec:
+  bucketName: iceberg-events
+  storageClassName: ceph-bucket

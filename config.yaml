@@ -112,6 +112,13 @@ components:
     namespace: "envoy-gateway-system"
     chart_version: "v1.7.0"
 
+  kafka_ui:
+    enabled: true
+    namespace: "kafka"
+    chart_repo: "https://kafbat.github.io/helm-charts"
+    chart_name: "kafka-ui"
+    chart_version: "1.6.0"
+
   camel_k:
     enabled: true
     namespace: "camel-k"

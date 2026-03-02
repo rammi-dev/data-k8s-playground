@@ -1,0 +1,9 @@
+# Playground-specific overrides for Kafbat UI
+kafka-ui:
+  yamlApplicationConfig:
+    kafka:
+      clusters:
+        - name: iceberg-events
+          bootstrapServers: events-kafka-kafka-bootstrap.iceberg-events.svc.cluster.local:9092
+    auth:
+      type: disabled
