@@ -58,4 +58,4 @@ aws s3 cp "$TMPFILE" "$S3_PATH" --endpoint-url "$S3_ENDPOINT"
 rm -f "$TMPFILE"
 
 print_success "Uploaded $FILE → $S3_PATH"
-print_info "S3 notification event should appear on Kafka topic 's3-events'"
+print_info "S3 notification event should appear on Kafka topic 'iceberg-events-topic'"
