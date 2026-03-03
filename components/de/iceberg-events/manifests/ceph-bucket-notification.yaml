@@ -1,5 +1,93 @@
 # CephBucketNotification — fires on all object uploads to the iceberg-events bucket
 # Bound to OBC via label: bucket-notification-iceberg-events-notify: iceberg-events-notify
+#
+# ─── CRD Spec Reference (ceph.rook.io/v1 CephBucketNotification) ───
+#
+# spec:
+#   topic: <string>         — (required) name of the CephBucketTopic to publish events to.
+#                              Must exist in the same namespace.
+#
+#   events:                  — (optional) list of S3 event types to capture.
+#     - <event-type>           If omitted, ALL event types are captured.
+#
+#   filter:                  — (optional) filter notifications by S3 object key.
+#     s3Key:
+#       filterRules:
+#         - name: prefix     — match keys starting with this value (e.g. "raw/table_x/")
+#           value: <string>
+#         - name: suffix     — match keys ending with this value (e.g. ".csv")
+#           value: <string>
+#         - name: regex      — match keys against a regex pattern (e.g. "raw/.*\\.parquet")
+#           value: <string>
+#     s3Metadata:            — (optional) filter by user-defined object metadata (x-amz-meta-*)
+#       filterRules:
+#         - name: <meta-key>   e.g. name: "x-amz-meta-table"
+#           value: <string>    e.g. value: "orders"
+#     s3Tags:                — (optional) filter by object tags
+#       filterRules:
+#         - name: <tag-key>    e.g. name: "environment"
+#           value: <string>    e.g. value: "production"
+#
+# ─── Binding to a bucket ───
+#
+# Attach this notification to an OBC by adding a label to the ObjectBucketClaim:
+#   metadata:
+#     labels:
+#       bucket-notification-<notification-name>: <notification-name>
+#
+# ─── Available event types (Ceph RGW S3 notification events) ───
+#
+#   s3:ObjectCreated:*                        — all create operations (Put, Post, Copy, CompleteMultipartUpload)
+#   s3:ObjectCreated:Put                      — direct object upload via PUT
+#   s3:ObjectCreated:Post                     — object upload via POST (form-based)
+#   s3:ObjectCreated:Copy                     — object created by server-side copy
+#   s3:ObjectCreated:CompleteMultipartUpload   — multipart upload completed
+#
+#   s3:ObjectRemoved:*                        — all delete operations (Delete, DeleteMarkerCreated)
+#   s3:ObjectRemoved:Delete                   — object permanently deleted
+#   s3:ObjectRemoved:DeleteMarkerCreated      — delete marker added (versioned bucket)
+#
+#   s3:ObjectLifecycle:Expiration:*           — object expired by lifecycle policy
+#   s3:ObjectLifecycle:Expiration:Current     — current version expired
+#   s3:ObjectLifecycle:Expiration:NonCurrent  — non-current version expired
+#   s3:ObjectLifecycle:Expiration:DeleteMarkerCreated — expiration created a delete marker
+#   s3:ObjectLifecycle:Expiration:AbortMultipartUpload — incomplete multipart upload aborted by lifecycle
+#   s3:ObjectLifecycle:Transition:Current     — current version transitioned to another storage class
+#   s3:ObjectLifecycle:Transition:NonCurrent  — non-current version transitioned
+#
+#   s3:ObjectSynced:*                         — object replicated to another zone (multi-site)
+#   s3:ObjectSynced:Create                    — object created on remote zone via sync
+#   s3:ObjectSynced:Delete                    — delete propagated to remote zone
+#   s3:ObjectSynced:DeletionMarkerCreated     — delete marker propagated via sync
+#
+#   s3:ObjectRestore:Post                     — restore request submitted (cloud-tier)
+#   s3:ObjectRestore:Completed                — restore from cloud tier completed
+#
+# ─── Filter examples ───
+#
+# Only table_x CSV files:
+#   filter:
+#     s3Key:
+#       filterRules:
+#         - name: prefix
+#           value: "raw/table_x/"
+#         - name: suffix
+#           value: ".csv"
+#
+# Only parquet files via regex:
+#   filter:
+#     s3Key:
+#       filterRules:
+#         - name: regex
+#           value: "raw/.*\\.parquet"
+#
+# Filter by object metadata (x-amz-meta-table: orders):
+#   filter:
+#     s3Metadata:
+#       filterRules:
+#         - name: x-amz-meta-table
+#           value: orders
+#
 apiVersion: ceph.rook.io/v1
 kind: CephBucketNotification
 metadata:
