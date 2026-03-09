@@ -12,6 +12,70 @@ $DISK_SIZE = "40g"
 $EXTRA_DISK_SIZE = 20GB  # Extra disk per node for Ceph OSD
 $K8S_VERSION = "v1.35.0"
 
+# Registry hostnames that need IPv4-only /etc/hosts entries.
+# Hyper-V VMs have no IPv6 routing — DNS returns AAAA records, Go/Docker tries
+# IPv6 first and fails. We resolve A records from the host and inject them.
+$REGISTRY_HOSTS = @(
+    "registry.k8s.io",
+    "europe-west10-docker.pkg.dev",
+    "registry-1.docker.io",
+    "production.cloudflare.docker.com",
+    "quay.io",
+    "gcr.io",
+    "cdn03.quay.io",
+    "docker.io",
+    "us-docker.pkg.dev",
+    "cdn01.quay.io",
+    "cdn02.quay.io"
+)
+
+function Fix-RegistryAccess {
+    param([string[]]$NodeNames)
+
+    # Resolve IPv4 addresses from the host (which has working DNS)
+    $hostsEntries = @()
+    foreach ($host_ in $REGISTRY_HOSTS) {
+        try {
+            $ip = (Resolve-DnsName -Name $host_ -Type A -DnsOnly -ErrorAction Stop |
+                   Where-Object { $_.Type -eq "A" } |
+                   Select-Object -First 1).IPAddress
+            if ($ip) {
+                $hostsEntries += "$ip $host_"
+            }
+        } catch {
+            Write-Host "[WARNING] Could not resolve $host_ - skipping" -ForegroundColor Yellow
+        }
+    }
+
+    if ($hostsEntries.Count -eq 0) {
+        Write-Host "[WARNING] No registry IPs resolved - image pulls may fail" -ForegroundColor Yellow
+        return
+    }
+
+    # Build a single command to inject all entries into /etc/hosts
+    $entriesBlock = ($hostsEntries | ForEach-Object { $_ }) -join "\n"
+    # Use a marker so we can cleanly replace on re-runs
+    $sshCmd = @(
+        "sudo sed -i '/# MINIKUBE-REGISTRY-FIX/,/# END-MINIKUBE-REGISTRY-FIX/d' /etc/hosts",
+        "echo -e '# MINIKUBE-REGISTRY-FIX\n$entriesBlock\n# END-MINIKUBE-REGISTRY-FIX' | sudo tee -a /etc/hosts > /dev/null",
+        "sudo systemctl restart docker"
+    ) -join " && "
+
+    foreach ($name in $NodeNames) {
+        & $MINIKUBE_EXE ssh -n $name -- $sshCmd 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "[SUCCESS] Registry /etc/hosts fix applied on $name" -ForegroundColor Green
+        } else {
+            Write-Host "[WARNING] Failed to apply fix on $name" -ForegroundColor Yellow
+        }
+    }
+
+    Write-Host "[INFO] Resolved entries:" -ForegroundColor Cyan
+    foreach ($entry in $hostsEntries) {
+        Write-Host "  $entry"
+    }
+}
+
 Write-Host "[INFO] === Minikube + Hyper-V Setup for Windows ===" -ForegroundColor Green
 Write-Host "[INFO] Configuration:" -ForegroundColor Green
 Write-Host "  Driver: Hyper-V"
@@ -156,6 +220,16 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ""
 Write-Host "[SUCCESS] Minikube cluster started!" -ForegroundColor Green
 
+# Fix image pulls — Hyper-V VMs have no IPv6 routing, but DNS returns AAAA records.
+# Go/Docker tries IPv6 first and fails. Fix: inject /etc/hosts with IPv4-only addresses.
+Write-Host ""
+Write-Host "[INFO] Fixing container registry access on all nodes (IPv4 /etc/hosts)..." -ForegroundColor Yellow
+$allVmNames = @("minikube")
+for ($i = 2; $i -le $NODES; $i++) {
+    $allVmNames += "minikube-m{0:D2}" -f $i
+}
+Fix-RegistryAccess -NodeNames $allVmNames
+
 # Attach extra VHDs for Ceph OSD (--extra-disks not supported on Hyper-V driver)
 # VMs must be stopped to attach new disks, then restarted
 Write-Host ""
@@ -216,19 +290,36 @@ if ($needsAttach) {
         Write-Host "[SUCCESS] Attached extra disk to $vmName" -ForegroundColor Green
     }
 
-    # Restart all VMs
-    Write-Host "[INFO] Restarting VMs..." -ForegroundColor Yellow
-    foreach ($vmName in $vmNames) {
-        Start-VM -Name $vmName -ErrorAction SilentlyContinue
+    # Restart VMs via minikube start (restores kubelet, apiserver, docker properly)
+    Write-Host "[INFO] Restarting cluster via minikube start..." -ForegroundColor Yellow
+    & $MINIKUBE_EXE start `
+        --driver=hyperv `
+        --hyperv-virtual-switch=$switchName `
+        --nodes=$NODES `
+        --cpus=$CPUS_PER_NODE `
+        --memory=$MEMORY_PER_NODE `
+        --disk-size=$DISK_SIZE `
+        --kubernetes-version=$K8S_VERSION `
+        --extra-config=kubelet.housekeeping-interval=10s `
+        --extra-config=kubelet.max-pods=50 `
+        --extra-config=kubelet.fail-swap-on=false
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[ERROR] Minikube failed to restart after disk attachment" -ForegroundColor Red
+        exit 1
     }
-    Start-Sleep -Seconds 10  # Wait for VMs to boot
+    Write-Host "[SUCCESS] Cluster restarted with extra disks" -ForegroundColor Green
+
+    # Re-apply /etc/hosts after restart (root fs is tmpfs, lost on reboot)
+    Write-Host "[INFO] Re-applying registry /etc/hosts fix after restart..." -ForegroundColor Yellow
+    Fix-RegistryAccess -NodeNames $vmNames
 } else {
     Write-Host "[SUCCESS] Extra disks already attached to all nodes" -ForegroundColor Green
 }
 
 Write-Host "[SUCCESS] Extra disks ready on all nodes" -ForegroundColor Green
 
-# Wait for nodes
+# Wait for all nodes to be Ready
 Write-Host "[INFO] Waiting for nodes to be ready..." -ForegroundColor Yellow
 & $KUBECTL_EXE wait --for=condition=Ready nodes --all --timeout=300s
 
