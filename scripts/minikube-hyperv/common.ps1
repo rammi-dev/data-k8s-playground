@@ -52,13 +52,14 @@ function Fix-RegistryAccess {
     }
 
     # Build a single command to inject all entries into /etc/hosts
-    $entriesBlock = ($hostsEntries | ForEach-Object { $_ }) -join "\n"
-    # Use a marker so we can cleanly replace on re-runs
-    $sshCmd = @(
-        "sudo sed -i '/# MINIKUBE-REGISTRY-FIX/,/# END-MINIKUBE-REGISTRY-FIX/d' /etc/hosts",
-        "echo -e '# MINIKUBE-REGISTRY-FIX\n$entriesBlock\n# END-MINIKUBE-REGISTRY-FIX' | sudo tee -a /etc/hosts > /dev/null",
-        "sudo systemctl restart docker"
-    ) -join " && "
+    # Use individual echo calls to avoid echo -e / \n escaping issues through minikube ssh
+    $sshCmd = "sudo sed -i '/# MINIKUBE-REGISTRY-FIX/,/# END-MINIKUBE-REGISTRY-FIX/d' /etc/hosts"
+    $sshCmd += " && echo '# MINIKUBE-REGISTRY-FIX' | sudo tee -a /etc/hosts > /dev/null"
+    foreach ($entry in $hostsEntries) {
+        $sshCmd += " && echo '$entry' | sudo tee -a /etc/hosts > /dev/null"
+    }
+    $sshCmd += " && echo '# END-MINIKUBE-REGISTRY-FIX' | sudo tee -a /etc/hosts > /dev/null"
+    $sshCmd += " && sudo systemctl restart docker"
 
     foreach ($name in $NodeNames) {
         & $MINIKUBE_EXE ssh -n $name -- $sshCmd 2>$null
