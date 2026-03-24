@@ -1,0 +1,47 @@
+# CloudNativePG Cluster for Apache Airflow metadata database
+# Deployed into the airflow namespace alongside Airflow itself.
+#
+# Connection details:
+#   Host:     airflow-db-rw.airflow.svc.cluster.local
+#   Port:     5432
+#   Database: airflow
+#   User:     airflow
+#   Password: kubectl get secret airflow-db-app -n airflow -o jsonpath='{.data.password}' | base64 -d
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: airflow-db
+  namespace: airflow
+spec:
+  # Single instance for development (increase for HA)
+  instances: 1
+
+  # PostgreSQL 17 community image
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.2
+
+  # Storage on Ceph block (RWO - per instance)
+  storage:
+    storageClass: ceph-block
+    size: 10Gi
+
+  # Resource limits
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1"
+
+  # Bootstrap: create 'airflow' database owned by 'airflow' user
+  bootstrap:
+    initdb:
+      database: airflow
+      owner: airflow
+      secret:
+        name: airflow-db-credentials
+
+  # Monitoring
+  monitoring:
+    enablePodMonitor: false

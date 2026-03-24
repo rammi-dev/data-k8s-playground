@@ -168,8 +168,8 @@ components:
   ollama:
     enabled: true
     namespace: "ollama"
-    chart_repo: "https://helm.otwld.com/"
+    chart_repo: "https://otwld.github.io/ollama-helm/"
     chart_name: "ollama"
-    chart_version: "1.43.0"
+    chart_version: "0.18.0"
     model: "tinyllama"                      # Model to pull on startup
 

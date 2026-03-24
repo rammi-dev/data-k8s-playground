@@ -23,14 +23,39 @@ if (-not (Test-Path $MINIKUBE_DIR)) {
     Write-Host "[SUCCESS] Created $MINIKUBE_DIR" -ForegroundColor Green
 }
 
-# Download minikube if not exists
+# Download or update minikube
 $MINIKUBE_EXE = Join-Path $MINIKUBE_DIR "minikube.exe"
-if (-not (Test-Path $MINIKUBE_EXE)) {
-    Write-Host "[INFO] Downloading minikube..." -ForegroundColor Yellow
+$shouldDownload = -not (Test-Path $MINIKUBE_EXE)
+
+if (Test-Path $MINIKUBE_EXE) {
+    try {
+        $currentVersion = (& $MINIKUBE_EXE version --short 2>$null).Trim()
+        if ($currentVersion) {
+            $latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/kubernetes/minikube/releases/latest"
+            $latestVersion = $latestRelease.tag_name
+            
+            if ($currentVersion -ne $latestVersion) {
+                Write-Host "[INFO] Update available: $currentVersion -> $latestVersion" -ForegroundColor Cyan
+                $shouldDownload = $true
+            } else {
+                Write-Host "[SUCCESS] minikube is up to date ($currentVersion)" -ForegroundColor Green
+            }
+        } else {
+            $shouldDownload = $true
+        }
+    } catch {
+        Write-Host "[WARNING] Could not check for updates. Using existing minikube." -ForegroundColor Yellow
+    }
+}
+
+if ($shouldDownload) {
+    Write-Host "[INFO] Downloading latest minikube..." -ForegroundColor Yellow
+    # Ensure no processes are locking the file
+    Get-Process minikube -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+    
     Invoke-WebRequest -OutFile $MINIKUBE_EXE -Uri 'https://github.com/kubernetes/minikube/releases/latest/download/minikube-windows-amd64.exe' -UseBasicParsing
     Write-Host "[SUCCESS] Downloaded minikube" -ForegroundColor Green
-} else {
-    Write-Host "[SUCCESS] minikube already installed" -ForegroundColor Green
 }
 
 # Download kubectl if not exists

@@ -1,0 +1,17 @@
+# Dedicated PVC for Airflow DAGs
+# Uses CephFS (ReadWriteMany) so scheduler AND all Celery workers can mount simultaneously.
+# After creation, copy your DAG files here:
+#   kubectl cp my_dag.py airflow/<scheduler-pod>:/opt/airflow/dags/
+# Or use a sidecar / init-container to copy from an object store.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: airflow-dags
+  namespace: airflow
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ceph-filesystem
+  resources:
+    requests:
+      storage: 5Gi

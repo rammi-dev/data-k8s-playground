@@ -41,16 +41,51 @@ echo "=========================================="
 print_info "Creating namespace: ${AIRFLOW_NAMESPACE}"
 kubectl create namespace "${AIRFLOW_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 
-# Add Airflow Helm repository
+# ============================================================================
+# STEP 1: Ensure CloudNative-PG operator is deployed (reuse postgres component)
+# ============================================================================
+print_info "Checking CloudNative-PG operator..."
+if ! kubectl get deployment -n "${POSTGRES_NAMESPACE}" -l app.kubernetes.io/name=cloudnative-pg --no-headers 2>/dev/null | grep -q .; then
+    print_info "CNPG operator not found — deploying via postgres build script..."
+    bash "$PROJECT_ROOT/components/postgres/scripts/build.sh"
+else
+    print_success "CNPG operator already running, skipping install"
+fi
+
+# ============================================================================
+# STEP 2: Deploy Airflow metadata DB (CNPG Cluster CR)
+# ============================================================================
+print_info "Applying Airflow DB credentials secret..."
+kubectl apply -f "$HELM_DIR/airflow-db-secret.yaml"
+
+print_info "Applying Airflow DB CNPG cluster..."
+kubectl apply -f "$HELM_DIR/airflow-db-cluster.yaml"
+
+print_info "Waiting for Airflow DB cluster to be ready (up to 3 min)..."
+kubectl wait cluster/airflow-db -n "${AIRFLOW_NAMESPACE}" \
+    --for=condition=Ready --timeout=180s || \
+    print_info "DB cluster not yet Ready, continuing (check: kubectl get cluster airflow-db -n ${AIRFLOW_NAMESPACE})"
+
+# ============================================================================
+# STEP 3: Pre-create the DAGs PVC (CephFS RWX)
+# ============================================================================
+print_info "Ensuring DAGs PVC exists (airflow-dags on ceph-filesystem)..."
+kubectl apply -f "$HELM_DIR/dags-pvc.yaml"
+
+print_info "Waiting for DAGs PVC to bind..."
+kubectl wait --for=jsonpath='{.status.phase}'=Bound pvc/airflow-dags -n "${AIRFLOW_NAMESPACE}" --timeout=60s || \
+    print_info "PVC not yet Bound, continuing"
+
+# ============================================================================
+# STEP 4: Deploy Airflow via Helm
+# ============================================================================
 print_info "Adding Apache Airflow Helm repository..."
 helm repo add apache-airflow "$AIRFLOW_CHART_REPO" 2>/dev/null || true
 helm repo update
 
-# Update chart dependencies
 print_info "Updating chart dependencies..."
 helm dependency update "$HELM_DIR"
 
-# Install or upgrade Airflow
 print_info "Installing/upgrading Apache Airflow..."
 helm upgrade --install ${RELEASE_NAME} "$HELM_DIR" \
     --namespace "${AIRFLOW_NAMESPACE}" \

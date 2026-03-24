@@ -101,6 +101,32 @@ cd docs/architecture
 
 Uses Structurizr C4 model. Hand-maintained extras in `extras/` are merged with generated content.
 
+## Access Dashboards and Services
+
+Each script sets up port-forwarding and prints credentials:
+- `components/monitoring/scripts/access-grafana.sh` — Grafana (port 3000)
+- `components/ceph/scripts/dashboard.sh` — Ceph dashboard (7000) + S3 gateway (7480)
+- `components/dremio/scripts/dashboard.sh` — Dremio UI
+- `components/airflow/scripts/access-webserver.sh` — Airflow webserver
+- `scripts/minikube/access-dashboard.sh` — K8s dashboard (30080)
+
+## Validate Base Infrastructure
+
+```bash
+components/ceph/scripts/test/test-s3.sh
+components/ceph/scripts/test/test-block-storage.sh
+components/ceph/scripts/test/test-filesystem.sh
+```
+
+## Multi-Repo Usage
+
+This is a shared infrastructure repo. Multiple project repos depend on it for their K8s runtime. Project repos should:
+- Reference this repo's `config.yaml` for namespaces, versions, and enabled components
+- Source `scripts/common/config-loader.sh` to get infra variables in their own scripts
+- Use `components/<name>/scripts/build.sh` to activate components they need
+
+A CLAUDE.md template for new project repos is at `docs/project-claude-template.md`.
+
 ## Shell Script Conventions
 
 - All bash scripts source `scripts/common/config-loader.sh` for configuration

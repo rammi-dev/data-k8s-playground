@@ -1,24 +1,14 @@
+# Ollama Playground Values — 0.18.0 Schema
+# Single replica, CPU-only (no GPU on minikube Hyper-V)
+
 ollama:
-  # Single replica, CPU-only (no GPU on minikube Hyper-V)
+  # Root level fields in the sub-chart
   replicaCount: 1
 
   image:
     repository: ollama/ollama
     pullPolicy: IfNotPresent
-
-  # Models to pull on startup
-  models:
-    pull:
-      - tinyllama
-
-  # Resources — tinyllama Q4 needs ~2GB RAM when loaded
-  resources:
-    requests:
-      cpu: "1"
-      memory: 2Gi
-    limits:
-      cpu: "4"
-      memory: 4Gi
+    # tag: "0.18.0" # Optional, defaults to appVersion
 
   # Persistence on Ceph RBD for model storage
   persistence:
@@ -31,9 +21,25 @@ ollama:
     type: ClusterIP
     port: 11434
 
-  # No GPU
-  gpu:
-    enabled: false
+  # Sub-key specifically for Ollama parameters in the 0.18.0 chart
+  ollama:
+    # No GPU
+    gpu:
+      enabled: false
+
+    # List of models to pull at container startup
+    models:
+      - tinyllama
+      - nomic-embed-text
+
+  # Resources
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "4"
+      memory: 4Gi
 
   # Liveness/readiness
   livenessProbe:

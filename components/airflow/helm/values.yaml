@@ -11,12 +11,62 @@
 # ============================================
 airflow:
   # Airflow version
-  defaultAirflowTag: "3.1.7"
+  defaultAirflowTag: "3.1.8"
+
+  # Fernet key for encryption (ensures connections/etc survive re-install)
+  # Change this to a secure random string for production
+  fernetKey: "8MGxm6J+ypDNN68KLTET99IVK6K/eO5caeBGqtAPHxY="
 
   # Executor: KubernetesExecutor, CeleryExecutor, LocalExecutor
   executor: "CeleryExecutor"
 
+  # ============================================
+  # RBAC + ServiceAccount (required for KubernetesPodOperator)
+  # ============================================
+  rbac:
+    create: true
+
+  serviceAccount:
+    create: true
+    name: "airflow"
+    # Allow airflow to launch pods in the airflow namespace
+    annotations: {}
+
+  # Grant the airflow service account permission to create/watch pods
+  # (needed by KubernetesPodOperator)
+  extraClusterRoleBindings:
+    - roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: edit
+      subjects:
+        - kind: ServiceAccount
+          name: airflow-worker
+          namespace: airflow
+        - kind: ServiceAccount
+          name: airflow-scheduler
+          namespace: airflow
+
+  # ============================================
+  # Airflow config overrides (airflow.cfg)
+  # ============================================
+  config:
+    core:
+      executor: CeleryExecutor
+      load_examples: "False"
+    celery:
+      worker_concurrency: "8"
+    kubernetes:
+      # Namespace where KubernetesPodOperator launches pods
+      namespace: airflow
+      in_cluster: "True"
+      # Clean up finished worker pods
+      delete_worker_pods: "True"
+      delete_worker_pods_on_failure: "False"
+
+  # ============================================
   # Web server
+  # ============================================
   webserver:
     replicas: 1
     resources:
@@ -27,7 +77,9 @@ airflow:
         cpu: 100m
         memory: 512Mi
 
+  # ============================================
   # Scheduler
+  # ============================================
   scheduler:
     replicas: 1
     resources:
@@ -38,7 +90,9 @@ airflow:
         cpu: 100m
         memory: 512Mi
 
+  # ============================================
   # Triggerer
+  # ============================================
   triggerer:
     enabled: true
     replicas: 1
@@ -50,19 +104,9 @@ airflow:
         cpu: 100m
         memory: 256Mi
 
-  # PostgreSQL sub-chart (bundled)
-  postgresql:
-    enabled: true
-
-  # Redis - Celery broker
-  redis:
-    enabled: true
-
-  # Flower - Celery monitoring UI
-  flower:
-    enabled: true
-
-  # Celery workers
+  # ============================================
+  # Celery Workers
+  # ============================================
   workers:
     replicas: 2
     resources:
@@ -72,10 +116,62 @@ airflow:
       requests:
         cpu: 100m
         memory: 512Mi
+    persistence:
+      # Worker log persistence (RWO is fine - per-pod)
+      enabled: true
+      size: 5Gi
+      storageClassName: ceph-block
 
-  # DAGs configuration
+  # ============================================
+  # Logs persistence (shared across components)
+  # ============================================
+  logs:
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClassName: ceph-filesystem  # RWX - shared across scheduler + workers
+
+  # ============================================
+  # DAGs: sync from dedicated PVC (RWX CephFS)
+  # The PVC 'airflow-dags' is pre-created by build.sh
+  # ============================================
   dags:
     persistence:
-      enabled: false
+      enabled: true
+      existingClaim: airflow-dags   # pre-created via helm/dags-pvc.yaml
+      accessMode: ReadWriteMany
     gitSync:
       enabled: false
+
+  # ============================================
+  # PostgreSQL: disabled - using CloudNative-PG operator cluster instead
+  # Cluster CR: helm/airflow-db-cluster.yaml (deployed by build.sh)
+  # Service:    airflow-db-rw.airflow.svc.cluster.local:5432
+  # ============================================
+  postgresql:
+    enabled: false
+
+  # External DB connection wired to CNPG cluster
+  # Correct structural path: data.metadataConnection
+  data:
+    metadataSecretName: ~
+    metadataConnection:
+      user: airflow
+      pass: "airflow-db-password-change-me"
+      protocol: postgresql
+      host: airflow-db-rw.airflow.svc.cluster.local
+      port: 5432
+      db: airflow
+      sslmode: disable
+
+  # ============================================
+  # Redis - Celery broker
+  # ============================================
+  redis:
+    enabled: true
+
+  # ============================================
+  # Flower - Celery monitoring UI
+  # ============================================
+  flower:
+    enabled: true
