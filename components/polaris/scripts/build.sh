@@ -11,13 +11,17 @@ echo -e "${CYAN}============================================${NC}"
 echo -e "${CYAN}  Deploying Apache Polaris + PostgreSQL${NC}"
 echo -e "${CYAN}============================================${NC}"
 
+# Get script directory for reliable relative paths
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+POLARIS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 # 1. Create namespace
 echo -e "\n${YELLOW}[1] Creating namespace 'polaris'...${NC}"
 kubectl create namespace polaris --dry-run=client -o yaml | kubectl apply -f -
 
 # 2. Deploy PostgreSQL Cluster
 echo -e "\n${YELLOW}[2] Deploying PostgreSQL (CloudNativePG)...${NC}"
-kubectl apply -f manifests/postgres.yaml
+kubectl apply -f "$POLARIS_DIR/manifests/postgres.yaml"
 
 # 3. Wait for database readiness
 echo -e "\n${YELLOW}[3] Waiting for database 'polaris-db' to be ready...${NC}"
@@ -26,10 +30,10 @@ kubectl wait --for=jsonpath='{.status.phase}'=Ready cluster/polaris-db -n polari
 
 # 4. Deploy Polaris via Helm
 echo -e "\n${YELLOW}[4] Deploying Apache Polaris via Helm...${NC}"
-helm dependency update helm/
-helm upgrade --install polaris helm/ \
+helm dependency update "$POLARIS_DIR/helm/"
+helm upgrade --install polaris "$POLARIS_DIR/helm/" \
   --namespace polaris \
-  --values helm/values.yaml
+  --values "$POLARIS_DIR/helm/values.yaml"
 
 echo -e "\n${GREEN}============================================${NC}"
 echo -e "${GREEN}  Apache Polaris deployment started!${NC}"
