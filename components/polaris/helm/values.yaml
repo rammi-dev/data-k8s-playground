@@ -1,0 +1,47 @@
+# Apache Polaris Helm Values
+
+polaris:
+  # Image configuration
+  image:
+    repository: apache/polaris
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  # Environment variables for Postgres connection
+  # CloudNativePG creates a secret named <cluster-name>-app with credentials
+  env:
+    - name: QUARKUS_DATASOURCE_JDBC_URL
+      value: "jdbc:postgresql://polaris-db-rw.polaris.svc.cluster.local:5432/polaris"
+    - name: QUARKUS_DATASOURCE_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: polaris-db-app
+          key: username
+    - name: QUARKUS_DATASOURCE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: polaris-db-app
+          key: password
+    - name: POLARIS_METASTORE_RESTART_ON_BOOTSTRAP
+      value: "true"
+
+  # Bootstrap configuration
+  # Polaris needs a bootstrap step to initialize the schema
+  bootstrap:
+    enabled: true
+    # The realm must match exactly across bootstrap and server
+    realm: "default-realm"
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 8181
+
+  # Resource management
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi

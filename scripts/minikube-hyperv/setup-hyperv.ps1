@@ -83,7 +83,7 @@ Write-Host "[INFO] Configuring Hyper-V networking for WSL access..." -Foreground
 
 # Check if external switch exists and is healthy
 $switchName = "minikube-external"
-$existingSwitch = Get-VMSwitch -Name $switchName -ErrorAction SilentlyContinue
+$existingSwitch = Get-VMSwitch -Name $switchName -ErrorAction Ignore
 $needsRecreate = $false
 
 if ($existingSwitch) {
@@ -106,8 +106,8 @@ if ($existingSwitch) {
 if (-not $existingSwitch -or $needsRecreate) {
     # Remove existing broken switch if needed
     if ($needsRecreate -and $existingSwitch) {
-        Write-Host "[INFO] Removing broken virtual switch..." -ForegroundColor Yellow
-        Remove-VMSwitch -Name $switchName -Force -ErrorAction SilentlyContinue
+        Write-Host "[INFO] Removing broken virtual switch: $switchName..." -ForegroundColor Yellow
+        Remove-VMSwitch -Name $switchName -Force
         Start-Sleep -Seconds 2
     }
 
@@ -150,6 +150,43 @@ if (-not $existingSwitch -or $needsRecreate) {
 }
 
 Write-Host ""
+Write-Host "[INFO] Ensuring 'minikube' profile is clean..." -ForegroundColor Yellow
+
+# Aggressively stop and REMOVE any VMs that might be locking the files
+Write-Host "  Checking for Minikube VMs in Hyper-V..."
+Get-VM | Where-Object { $_.Name -like "minikube*" } | ForEach-Object {
+    Write-Host "  Identified VM: $($_.Name) (State: $($_.State))..." -ForegroundColor Cyan
+    if ($_.State -ne "Off") {
+        Write-Host "    Stopping VM..."
+        Stop-VM -Name $_.Name -Force -TurnOff
+    }
+    Write-Host "    Removing VM from Hyper-V..."
+    Remove-VM -Name $_.Name -Force
+}
+
+# Run delete to clear any half-removed or corrupt state for the targeted profile
+try {
+    & $MINIKUBE_EXE delete -p minikube
+} catch {
+    Write-Host "[WARNING] 'minikube delete' reported an error, attempting manual cleanup..." -ForegroundColor Yellow
+}
+
+# Also manually clear the machine folders if they still exist (surgical)
+@("minikube", "minikube-m02", "minikube-m03") | ForEach-Object {
+    $path = Join-Path $env:USERPROFILE ".minikube\machines\$_"
+    if (Test-Path $path) {
+        Write-Host "  Removing machine folder: $_"
+        try {
+            Remove-Item $path -Recurse -Force -ErrorAction Stop
+        } catch {
+            Write-Host "[ERROR] Could not remove $path. The file is still locked by another process." -ForegroundColor Red
+            Write-Host "        Please close Hyper-V Manager and any other programs using this VM." -ForegroundColor Yellow
+            Write-Host "        If it still fails, you may need to restart your computer." -ForegroundColor Yellow
+            throw $_
+        }
+    }
+}
+
 Write-Host "[INFO] Starting minikube cluster..." -ForegroundColor Yellow
 
 # Start minikube with Hyper-V driver and external switch
@@ -188,8 +225,8 @@ Write-Host "[INFO] Attaching extra disks for Ceph OSD..." -ForegroundColor Yello
 # Check if any VMs need disks attached
 $needsAttach = $false
 foreach ($vmName in $vmNames) {
-    $vm = Get-VM -Name $vmName -ErrorAction SilentlyContinue
-    if (-not $vm) { continue }
+    if (-not (Get-VM -Name $vmName -ErrorAction Ignore)) { continue }
+    $vm = Get-VM -Name $vmName
     $vhdPath = Join-Path (Split-Path $vm.HardDrives[0].Path) "ceph-osd.vhdx"
     $existingDisk = $vm.HardDrives | Where-Object { $_.Path -eq $vhdPath }
     if (-not $existingDisk) { $needsAttach = $true; break }
@@ -197,19 +234,24 @@ foreach ($vmName in $vmNames) {
 
 if ($needsAttach) {
     # Stop all VMs to attach disks
-    Write-Host "[INFO] Stopping VMs to attach extra disks..." -ForegroundColor Yellow
+    Write-Host "[INFO] Stopping VMs... " -ForegroundColor Yellow
     foreach ($vmName in $vmNames) {
-        Stop-VM -Name $vmName -Force -ErrorAction SilentlyContinue
+        if (Get-VM -Name $vmName -ErrorAction Ignore) {
+            Write-Host "  Stopping $vmName..."
+            Stop-VM -Name $vmName -Force
+        }
     }
     # Wait for all VMs to stop
     foreach ($vmName in $vmNames) {
-        while ((Get-VM -Name $vmName -ErrorAction SilentlyContinue).State -ne "Off") {
-            Start-Sleep -Seconds 2
+        if (Get-VM -Name $vmName -ErrorAction Ignore) {
+            while ((Get-VM -Name $vmName).State -ne "Off") {
+                Start-Sleep -Seconds 2
+            }
         }
     }
 
     foreach ($vmName in $vmNames) {
-        $vm = Get-VM -Name $vmName -ErrorAction SilentlyContinue
+        $vm = Get-VM -Name $vmName -ErrorAction Ignore
         if (-not $vm) {
             Write-Host "[WARNING] VM '$vmName' not found, skipping disk attachment" -ForegroundColor Yellow
             continue

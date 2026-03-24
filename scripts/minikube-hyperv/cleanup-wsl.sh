@@ -23,10 +23,13 @@ fi
 # 1. Surgical Kubeconfig Cleanup
 echo -e "\n${YELLOW}[1] Cleaning up ~/.kube/config...${NC}"
 if [ -f ~/.kube/config ]; then
-    kubectl config unset contexts.minikube 2>/dev/null
-    kubectl config unset clusters.minikube 2>/dev/null
-    kubectl config unset users.minikube 2>/dev/null
-    echo -e "${GREEN}[DONE] Removed 'minikube' context/cluster/user from ~/.kube/config${NC}"
+    echo -e "${CYAN}  Removing 'minikube' context...${NC}"
+    kubectl config unset contexts.minikube
+    echo -e "${CYAN}  Removing 'minikube' cluster...${NC}"
+    kubectl config unset clusters.minikube
+    echo -e "${CYAN}  Removing 'minikube' user...${NC}"
+    kubectl config unset users.minikube
+    echo -e "${GREEN}[DONE] Kubeconfig cleanup complete.${NC}"
 else
     echo -e "${GREEN}[SKIP] ~/.kube/config not found${NC}"
 fi
@@ -42,7 +45,7 @@ if [ -d "$WIN_MINIKUBE_DIR/machines" ]; then
         TARGET_PATH="$WIN_MINIKUBE_DIR/machines/$m"
         if [ -d "$TARGET_PATH" ]; then
             echo -e "${CYAN}  Attempting to delete: $m...${NC}"
-            rm -rf "$TARGET_PATH" 2>/dev/null
+            rm -rf "$TARGET_PATH"
             if [ -d "$TARGET_PATH" ]; then
                 echo -e "${RED}[WARNING] $m could not be fully deleted (likely locked VHDX files).${NC}"
                 echo -e "${RED}          Restarting your machine or stopping Hyper-V may help.${NC}"
@@ -57,7 +60,13 @@ if [ -d "$WIN_MINIKUBE_DIR/machines" ]; then
         echo -e "${CYAN}  Cleaning small metadata folders (leaving 'machines' and your preserved profiles)...${NC}"
         # Only delete folders we know are safe metadata folders
         # DO NOT delete cache, files, or machines (machines contains zeropod-poc)
-        rm -rf "$WIN_MINIKUBE_DIR/addons" "$WIN_MINIKUBE_DIR/certs" "$WIN_MINIKUBE_DIR/config" "$WIN_MINIKUBE_DIR/logs" 2>/dev/null
+        for dir in "addons" "certs" "config" "logs"; do
+            DIR_PATH="$WIN_MINIKUBE_DIR/$dir"
+            if [ -d "$DIR_PATH" ]; then
+                echo -e "    Removing $dir..."
+                rm -rf "$DIR_PATH"
+            fi
+        done
         echo -e "${GREEN}[DONE] Metadata cleanup complete.${NC}"
     fi
 else

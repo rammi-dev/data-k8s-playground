@@ -1,0 +1,11 @@
+apiVersion: v2
+name: polaris
+description: Apache Polaris (incubating) Iceberg Catalog
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+dependencies:
+  - name: polaris
+    version: "0.1.0-incubating"
+    repository: "https://apache.github.io/polaris"
