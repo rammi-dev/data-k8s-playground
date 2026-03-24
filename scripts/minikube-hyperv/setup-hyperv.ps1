@@ -317,6 +317,8 @@ Write-Host "[INFO] Enabling addons..." -ForegroundColor Yellow
 & $MINIKUBE_EXE addons enable metrics-server
 & $MINIKUBE_EXE addons enable registry
 & $MINIKUBE_EXE addons enable metallb
+& $MINIKUBE_EXE addons enable volumesnapshots
+& $MINIKUBE_EXE addons enable csi-hostpath-driver
 
 # Configure MetalLB with dynamic IP range
 Write-Host "[INFO] Configuring MetalLB IP range..." -ForegroundColor Yellow
